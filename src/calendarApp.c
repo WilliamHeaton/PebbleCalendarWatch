@@ -31,6 +31,13 @@ const int  dayOfWeekOffset = 1;
 const char daysOfWeek[7][3] = {"S","M","T","W","Th","F","S"};
 const char months[12][12] = {"January","Feburary","March","April","May","June","July","August","September","October", "November", "December"};
 
+bool calEvents[31] = {  false,false,false,false,false,
+                        false,false,false,false,false,
+                        false,false,false,false,false,
+                        false,false,false,false,false,
+                        false,false,false,false,false,
+                        false,false,false,false,false,false};
+
 char* intToStr(int val){
 
  	static char buf[32] = {0};
@@ -237,9 +244,14 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
                     ,0
                     ,GCornerNone);
             }
+
+        // Is there event Today? If so prep event style;
+        }
+        if(calEvents[i-1]){
+        
             font = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
             fh = 20;
-
+        
         // Normal (non-today) style
         }else{
             font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
@@ -308,11 +320,91 @@ void month_layer_update_callback(Layer *me, GContext* ctx) {
 }
 
 
+static void send_cmd() {
+    
+    for (int i = 0; i < 31; ++i){
+        calEvents[i] = false;
+    }
+    
+    PblTm currentTime;
+    get_time(&currentTime);
+    
+    Tuplet year = TupletInteger(1, currentTime.tm_year+1900);
+    Tuplet month = TupletInteger(2, currentTime.tm_mon+offset );
+
+    DictionaryIterator *iter;
+    app_message_out_get(&iter);
+
+    if (iter == NULL)
+        return;
+    
+    dict_write_tuplet(iter, &month);
+    dict_write_tuplet(iter, &year);
+    dict_write_end(iter);
+
+    app_message_out_send();
+    app_message_out_release();
+}
+void my_out_sent_handler(DictionaryIterator *sent, void *context) {
+  // outgoing message was delivered
+}
+void my_out_fail_handler(DictionaryIterator *failed, AppMessageResult reason, void *context) {
+  // outgoing message failed
+}
+void my_in_rcv_handler(DictionaryIterator *received, void *context) {
+    // incoming message received
+    
+    PblTm currentTime;
+    get_time(&currentTime);
+    uint8_t year = currentTime.tm_year+1900;
+    uint8_t month = currentTime.tm_mon+offset ;
+    
+    int y = 0;
+    int m = 0;
+    char days[31];
+    
+    Tuple *tuple = dict_read_first(received);
+    while (tuple) {
+        switch (tuple->key) {
+            case 1:
+                y = tuple->value->uint8;
+                break;
+            case 2:
+                m = tuple->value->uint8;
+                break;
+            case 3:
+                strncpy(days, tuple->value->cstring, 31);
+                break;
+        }
+        tuple = dict_read_next(received);
+    }
+    
+    if(m==month && y == year){
+    
+        for (int i = 0; i < 31; ++i){
+            calEvents[i] = days[i] == '1';
+        }
+        layer_mark_dirty(&days_layer);
+    }else{
+        send_cmd();    
+    }
+    
+    
+    
+    
+    
+}
+void my_in_drp_handler(void *context, AppMessageResult reason) {
+  // incoming message dropped
+}
+
 
 void up_single_click_handler(ClickRecognizerRef recognizer, Window *window) {
     (void)recognizer;
     (void)window;
     offset--;
+    
+    send_cmd();
     layer_mark_dirty(&month_layer);
     layer_mark_dirty(&days_layer);
 }
@@ -322,6 +414,7 @@ void down_single_click_handler(ClickRecognizerRef recognizer, Window *window) {
     (void)recognizer;
     (void)window;
     offset++;
+    send_cmd();
     layer_mark_dirty(&month_layer);
     layer_mark_dirty(&days_layer);
 }
@@ -330,6 +423,7 @@ void select_single_click_handler(ClickRecognizerRef recognizer, Window *window) 
     (void)recognizer;
     (void)window;
     offset = 0;
+    send_cmd();
     layer_mark_dirty(&month_layer);
     layer_mark_dirty(&days_layer);
 }
@@ -360,6 +454,7 @@ void handle_init(AppContextRef ctx) {
     layer_add_child(&window.layer, &days_layer);
     
     window_set_click_config_provider(&window, (ClickConfigProvider) config_provider);
+    send_cmd();
 }
 
 void handle_tick(AppContextRef ctx, PebbleTickEvent *t) {
@@ -374,7 +469,19 @@ void pbl_main(void *params) {
     .tick_info = {
         .tick_handler = &handle_tick,
         .tick_units = DAY_UNIT
-    }
+    },
+	.messaging_info = {
+		.buffer_sizes = {
+			.inbound = 512,
+			.outbound = 512,
+		},
+        .default_callbacks.callbacks = {
+            .out_sent = my_out_sent_handler,
+            .out_failed = my_out_fail_handler,
+            .in_received = my_in_rcv_handler,
+            .in_dropped = my_in_drp_handler,
+        }
+	}
   };
   app_event_loop(params, &handlers);
 }
