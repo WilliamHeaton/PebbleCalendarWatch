@@ -472,8 +472,8 @@ void pbl_main(void *params) {
     },
 	.messaging_info = {
 		.buffer_sizes = {
-			.inbound = 512,
-			.outbound = 512,
+			.inbound = 100,
+			.outbound = 100,
 		},
         .default_callbacks.callbacks = {
             .out_sent = my_out_sent_handler,
