@@ -4,12 +4,24 @@
 #include <math.h>
 #include "resource_ids.auto.h"
 
-#define MY_UUID { 0xB4, 0x1E, 0x3D, 0xCF, 0x61, 0x62, 0x41, 0x47, 0x9C, 0x58, 0x64, 0x3E, 0x10, 0x91, 0xFB, 0x93 }
-PBL_APP_INFO(MY_UUID,
+//#define WATCHMODE
+
+#define APP_UUID { 0xB4, 0x1E, 0x3D, 0xCF, 0x61, 0x62, 0x41, 0x47, 0x9C, 0x58, 0x64, 0x3E, 0x10, 0x91, 0xFB, 0x93 }
+#define WATCH_UUID { 0x8C, 0x77, 0x18, 0xB5, 0x81, 0x58, 0x48, 0xD9, 0x9D, 0x81, 0x1E, 0x3A, 0xB2, 0x32, 0xC9, 0x5C }
+
+#ifdef WATCHMODE
+PBL_APP_INFO(WATCH_UUID,
+             "Calendar", "William Heaton",
+             1, 0, /* App version */
+             RESOURCE_ID_IMAGE_MENU_ICON,
+             APP_INFO_WATCH_FACE);
+#else
+PBL_APP_INFO(APP_UUID,
              "Calendar", "William Heaton",
              1, 0, /* App version */
              RESOURCE_ID_IMAGE_MENU_ICON,
              APP_INFO_STANDARD_APP);
+#endif
 
 static int offset = 0;
 
@@ -287,6 +299,10 @@ void month_layer_update_callback(Layer *me, GContext* ctx) {
     
     setColors(ctx);
     
+#ifdef WATCHMODE
+    char str[20] = ""; 
+    string_format_time(str, sizeof(str), "%B %d, %Y", &currentTime);
+#else
     // Add month offset to current month/year
     int mon = currentTime.tm_mon+offset;
     int year = currentTime.tm_year+1900;
@@ -307,7 +323,8 @@ void month_layer_update_callback(Layer *me, GContext* ctx) {
     strcpy (str,months[mon]);
     strcat (str," ");
     strcat (str,intToStr(year));
-    
+#endif
+
     // Draw the MONTH/YEAR String
     graphics_text_draw(
         ctx, 
@@ -399,6 +416,7 @@ void my_in_drp_handler(void *context, AppMessageResult reason) {
 }
 
 
+#ifndef WATCHMODE
 void up_single_click_handler(ClickRecognizerRef recognizer, Window *window) {
     (void)recognizer;
     (void)window;
@@ -436,6 +454,7 @@ void config_provider(ClickConfig **config, Window *window) {
     config[BUTTON_ID_DOWN]->click.handler = (ClickHandler) down_single_click_handler;
     config[BUTTON_ID_DOWN]->click.repeat_interval_ms = 100;
 }
+#endif
 
 void handle_init(AppContextRef ctx) {
   (void)ctx;
@@ -452,8 +471,10 @@ void handle_init(AppContextRef ctx) {
     layer_init(&days_layer, window.layer.frame);
     days_layer.update_proc = &days_layer_update_callback;
     layer_add_child(&window.layer, &days_layer);
-    
+
+#ifndef WATCHMODE
     window_set_click_config_provider(&window, (ClickConfigProvider) config_provider);
+#endif
     send_cmd();
 }
 
