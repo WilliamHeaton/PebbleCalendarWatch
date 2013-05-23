@@ -221,7 +221,7 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
             ctx, 
             daysOfWeek[j], 
             fonts_get_system_font(FONT_KEY_GOTHIC_14), 
-            GRect(cl+i*lw, 30, cw, 20), 
+            GRect(cl+i*lw, b-w*bh-16, cw, 15), 
             GTextOverflowModeWordWrap, 
             GTextAlignmentCenter, 
             NULL); 
@@ -231,6 +231,7 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
     
     // Fill in the cells with the month days
     int fh;
+    int fo;
     GFont font;
     int wknum = 0;
     
@@ -262,12 +263,14 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
         if(calEvents[i-1]){
         
             font = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
-            fh = 20;
+            fh = 19;
+            fo = 12;
         
         // Normal (non-today) style
         }else{
             font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
-            fh = 16;
+            fh = 15;
+            fo = 9;
         }
         
         // Draw the day
@@ -277,7 +280,7 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
             font, 
             GRect(
                 cl+dow*lw, 
-                b-(-0.5+w-wknum)*bh-fh/2-1, 
+                b-(-0.5+w-wknum)*bh-fo, 
                 cw, 
                 fh), 
             GTextOverflowModeWordWrap, 
