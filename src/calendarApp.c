@@ -51,9 +51,7 @@ bool calEvents[31] = {  false,false,false,false,false,
                         false,false,false,false,false,false};
 
 char* intToStr(int val){
-
  	static char buf[32] = {0};
-	
 	int i = 30;	
 	for(; val && i ; --i, val /= 10)
 		buf[i] = "0123456789"[val % 10];
@@ -488,7 +486,7 @@ void pbl_main(void *params) {
 	.messaging_info = {
 		.buffer_sizes = {
 			.inbound = 100,
-			.outbound = 100,
+			.outbound = 40,
 		},
         .default_callbacks.callbacks = {
             .out_sent = my_out_sent_handler,
