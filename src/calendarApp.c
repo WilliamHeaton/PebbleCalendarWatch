@@ -4,12 +4,28 @@
 #include <math.h>
 #include "resource_ids.auto.h"
 
-//#define WATCHMODE
+
+#define WATCHMODE false
+
+#define BLACK true
+#define GRID true
+#define INVERT true
+
+// First day of the week. Values can be between -6 and 6 
+// 0 = weeks start on Sunday
+// 1 =  weeks start on Monday
+#define START_OF_WEEK 0
+
+const char daysOfWeek[7][3] = {"S","M","T","W","Th","F","S"};
+const char months[12][12] = {"January","Feburary","March","April","May","June","July","August","September","October", "November", "December"};
+
+
+
 
 #define APP_UUID { 0xB4, 0x1E, 0x3D, 0xCF, 0x61, 0x62, 0x41, 0x47, 0x9C, 0x58, 0x64, 0x3E, 0x10, 0x91, 0xFB, 0x93 }
 #define WATCH_UUID { 0x8C, 0x77, 0x18, 0xB5, 0x81, 0x58, 0x48, 0xD9, 0x9D, 0x81, 0x1E, 0x3A, 0xB2, 0x32, 0xC9, 0x5C }
 
-#ifdef WATCHMODE
+#if WATCHMODE
 PBL_APP_INFO(WATCH_UUID,
              "Calendar", "William Heaton",
              1, 0, /* App version */
@@ -24,25 +40,9 @@ PBL_APP_INFO(APP_UUID,
 #endif
 
 static int offset = 0;
-
 Window window;
-
 Layer month_layer;
 Layer days_layer;
-
-const bool black = true;  // Is the background black
-const bool grid = true; // show the grid
-const bool invert = true; // Invert colors on today's date
-
-
-// Offset days of week. Values can be between -6 and 6 
-// 0 = weeks start on Sunday
-// 1 =  weeks start on Monday
-const int  dayOfWeekOffset = 0; 
-
-const char daysOfWeek[7][3] = {"S","M","T","W","Th","F","S"};
-const char months[12][12] = {"January","Feburary","March","April","May","June","July","August","September","October", "November", "December"};
-
 bool calEvents[31] = {  false,false,false,false,false,
                         false,false,false,false,false,
                         false,false,false,false,false,
@@ -59,12 +59,6 @@ char* intToStr(int val){
 		buf[i] = "0123456789"[val % 10];
 	
 	return &buf[i+1];
-}
-// Calculate what day of the week it was on the first day of the month, if mday was a wday
-int wdayOfFirst(int wday,int mday){
-    int a = wday - ((mday-1)%7);
-    if(a<0) a += 7;
-    return a;
 }
 // Calculate what day of the week it was/will be X days from the first day of the month, if mday was a wday
 int wdayOfFirstOffset(int wday,int mday,int ofs){
@@ -107,29 +101,29 @@ int daysInMonth(int mon, int year){
         return 31;
 }
 void setColors(GContext* ctx){
-    if(black){
+#if BLACK
         window_set_background_color(&window, GColorBlack);
         graphics_context_set_stroke_color(ctx, GColorWhite);
         graphics_context_set_fill_color(ctx, GColorBlack);
         graphics_context_set_text_color(ctx, GColorWhite);
-    }else{
+#else
         window_set_background_color(&window, GColorWhite);
         graphics_context_set_stroke_color(ctx, GColorBlack);
         graphics_context_set_fill_color(ctx, GColorWhite);
         graphics_context_set_text_color(ctx, GColorBlack);
-    }
+#endif
 }
 void setInvColors(GContext* ctx){
-    if(!black){
+#if BLACK
+        window_set_background_color(&window, GColorWhite);
+        graphics_context_set_stroke_color(ctx, GColorBlack);
+        graphics_context_set_fill_color(ctx, GColorWhite);
+        graphics_context_set_text_color(ctx, GColorBlack);
+#else
         graphics_context_set_stroke_color(ctx, GColorWhite);
         graphics_context_set_fill_color(ctx, GColorBlack);
         graphics_context_set_text_color(ctx, GColorWhite);
-    }else{
-        window_set_background_color(&window, GColorWhite);
-        graphics_context_set_stroke_color(ctx, GColorBlack);
-        graphics_context_set_fill_color(ctx, GColorWhite);
-        graphics_context_set_text_color(ctx, GColorBlack);
-    }
+#endif
 }
 
 
@@ -174,7 +168,7 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
     int dow = wdayOfFirstOffset(currentTime.tm_wday,currentTime.tm_mday,od);
     
     // Adjust day of week by specified offset
-    dow -= dayOfWeekOffset;
+    dow -= START_OF_WEEK;
     if(dow>6) dow-=7;
     if(dow<0) dow+=7;
     
@@ -198,23 +192,24 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
     int ch = bh-1;
         
     setColors(ctx);
-    
+
+#if GRID
     // Draw the Gridlines
-    if(grid){
-        // horizontal lines
-        for(i=1;i<=w;i++){
-            graphics_draw_line(ctx, GPoint(l, b-i*bh), GPoint(r, b-i*bh));
-        }
-        // vertical lines
-        for(i=1;i<d;i++){
-            graphics_draw_line(ctx, GPoint(l+i*lw, t), GPoint(l+i*lw, b));
-        }
+    // horizontal lines
+    for(i=1;i<=w;i++){
+        graphics_draw_line(ctx, GPoint(l, b-i*bh), GPoint(r, b-i*bh));
     }
+    // vertical lines
+    for(i=1;i<d;i++){
+        graphics_draw_line(ctx, GPoint(l+i*lw, t), GPoint(l+i*lw, b));
+    }
+#endif
+
     // Draw days of week
     for(i=0;i<7;i++){
     
         // Adjust labels by specified offset
-        j = i+dayOfWeekOffset;
+        j = i+START_OF_WEEK;
         if(j>6) j-=7;
         if(j<0) j+=7;
         graphics_text_draw(
@@ -243,23 +238,22 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
             wknum ++;
         }
 
+#if INVERT
         // Is this today?  If so prep special today style
         if(i==currentTime.tm_mday && offset == 0){
-            if(invert){
-                setInvColors(ctx);
-                graphics_fill_rect(
-                    ctx,
-                    GRect(
-                        l+dow*lw+1, 
-                        b-(w-wknum)*bh+1, 
-                        cw, 
-                        ch)
-                    ,0
-                    ,GCornerNone);
-            }
-
-        // Is there event Today? If so prep event style;
+            setInvColors(ctx);
+            graphics_fill_rect(
+                ctx,
+                GRect(
+                    l+dow*lw+1, 
+                    b-(w-wknum)*bh+1, 
+                    cw, 
+                    ch)
+                ,0
+                ,GCornerNone);
         }
+#endif
+
         if(calEvents[i-1]){
         
             font = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
@@ -287,9 +281,11 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
             GTextAlignmentCenter, 
             NULL); 
         
+#if INVERT
         // Fix colors if inverted
-        if(invert && offset == 0 && i==currentTime.tm_mday ) setColors(ctx);
-        
+        if(offset == 0 && i==currentTime.tm_mday ) setColors(ctx);
+#endif
+
         // and on to the next day
         dow++;   
     }
@@ -302,7 +298,7 @@ void month_layer_update_callback(Layer *me, GContext* ctx) {
     
     setColors(ctx);
     
-#ifdef WATCHMODE
+#if WATCHMODE
     char str[20] = ""; 
     string_format_time(str, sizeof(str), "%B %d, %Y", &currentTime);
 #else
@@ -408,18 +404,13 @@ void my_in_rcv_handler(DictionaryIterator *received, void *context) {
     }else{
         send_cmd();    
     }
-    
-    
-    
-    
-    
 }
 void my_in_drp_handler(void *context, AppMessageResult reason) {
   // incoming message dropped
 }
 
 
-#ifndef WATCHMODE
+#if !WATCHMODE
 void up_single_click_handler(ClickRecognizerRef recognizer, Window *window) {
     (void)recognizer;
     (void)window;
@@ -475,7 +466,7 @@ void handle_init(AppContextRef ctx) {
     days_layer.update_proc = &days_layer_update_callback;
     layer_add_child(&window.layer, &days_layer);
 
-#ifndef WATCHMODE
+#if !WATCHMODE
     window_set_click_config_provider(&window, (ClickConfigProvider) config_provider);
 #endif
     send_cmd();
