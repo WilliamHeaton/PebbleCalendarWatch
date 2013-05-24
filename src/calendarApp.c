@@ -10,6 +10,7 @@
 #define BLACK true
 #define GRID true
 #define INVERT true
+#define SHOWTIME false
 
 // First day of the week. Values can be between -6 and 6 
 // 0 = weeks start on Sunday
@@ -41,8 +42,14 @@ PBL_APP_INFO(APP_UUID,
 
 static int offset = 0;
 Window window;
-Layer month_layer;
 Layer days_layer;
+#if SHOWTIME
+TextLayer timeLayer;
+int curHour;
+int curMin;
+int curSec;
+
+#endif
 bool calEvents[32] = {  false,false,false,false,false,
                         false,false,false,false,false,
                         false,false,false,false,false,
@@ -173,16 +180,24 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
     // Cell geometry
     
     int l = 2;      // position of left side of left column
-    int b = 167;    // position of bottom of bottom row
+    int b = 168;    // position of bottom of bottom row
     int d = 7;      // number of columns (days of the week)
     int lw = 20;    // width of columns 
     int w = ceil(((float) dow + (float) dom)/7); // number of weeks this month
     
-    int bh;    // How tall rows should be depends on how many weeks there are
+#if SHOWTIME
+    int bh;
+    if(w == 4)      bh = 21;
+    else if(w == 5) bh = 17;
+    else            bh = 14;
+#else    
+    // How tall rows should be depends on how many weeks there are
+    int bh;
     if(w == 4)      bh = 30;
     else if(w == 5) bh = 24;
     else            bh = 20;
-        
+#endif
+
     int r = l+d*lw; // position of right side of right column
     int t = b-w*bh; // position of top of top row
     int cw = lw-1;  // width of textarea
@@ -287,34 +302,12 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
         // and on to the next day
         dow++;   
     }
-}
-
-void month_layer_update_callback(Layer *me, GContext* ctx) {
-    (void)me;
-    PblTm currentTime;
-    get_time(&currentTime);
     
-    setColors(ctx);
     
 #if WATCHMODE
     char str[20] = ""; 
     string_format_time(str, sizeof(str), "%B %d, %Y", &currentTime);
 #else
-    // Add month offset to current month/year
-    int mon = currentTime.tm_mon+offset;
-    int year = currentTime.tm_year+1900;
-    
-    // Fix the momtn and year to be sane values
-    while(mon > 11 || mon < 0){
-        if(mon>11){
-            mon -= 12;
-            year++;
-        }else if(mon < 0){
-            mon += 12;
-            year--;
-        }
-    }
-    
     // Build the MONTH YEAR string
     char str[20];
     strcpy (str,months[mon]);
@@ -327,12 +320,38 @@ void month_layer_update_callback(Layer *me, GContext* ctx) {
         ctx, 
         str,  
         fonts_get_system_font(FONT_KEY_GOTHIC_24), 
-        GRect(0, 0, 144, 30), 
+#if SHOWTIME
+        GRect(0, 40, 144, 25), 
+#else
+        GRect(0, 0, 144, 25), 
+#endif
         GTextOverflowModeWordWrap, 
         GTextAlignmentCenter, 
         NULL);
 }
 
+#if SHOWTIME
+void updateTime(PblTm * t){
+
+    curHour=t->tm_hour;
+    curMin=t->tm_min;
+    curSec=t->tm_sec;
+    
+    static char timeText[] = "00:00";
+    if(clock_is_24h_style()){
+        string_format_time(timeText, sizeof(timeText), "%H:%M", t);
+        if(curHour<10)memmove(timeText, timeText+1, strlen(timeText)); 
+    }else{
+        string_format_time(timeText, sizeof(timeText), "%I:%M", t);
+        if( (curHour > 0 && curHour<10) || (curHour>12 && curHour<22))memmove(timeText, timeText+1, strlen(timeText)); 
+    }text_layer_set_text(&timeLayer, timeText);
+    
+    
+//    static char dateText[30];
+//    string_format_time(dateText, sizeof(dateText), "%B %d", t);//"%A\n%B %d", t);
+//    text_layer_set_text(&dateLayer, dateText);
+}
+#endif
 
 static void send_cmd(){
         
@@ -371,7 +390,7 @@ static void monthChanged(){
     }
     send_cmd();
     
-    layer_mark_dirty(&month_layer);
+    
     layer_mark_dirty(&days_layer);
 }
 void my_out_sent_handler(DictionaryIterator *sent, void *context) {
@@ -467,6 +486,7 @@ void config_provider(ClickConfig **config, Window *window) {
 }
 #endif
 
+
 void handle_init(AppContextRef ctx) {
   (void)ctx;
     window_init(&window, "Calendar");
@@ -475,14 +495,26 @@ void handle_init(AppContextRef ctx) {
     
     setColors(ctx);
     
-    layer_init(&month_layer, window.layer.frame);
-    month_layer.update_proc = &month_layer_update_callback;
-    layer_add_child(&window.layer, &month_layer);
-
     layer_init(&days_layer, window.layer.frame);
     days_layer.update_proc = &days_layer_update_callback;
     layer_add_child(&window.layer, &days_layer);
 
+#if SHOWTIME
+    text_layer_init(&timeLayer, GRect(0, -6, 144, 43));
+#if BLACK
+    text_layer_set_text_color(&timeLayer, GColorWhite);
+#else
+    text_layer_set_text_color(&timeLayer, GColorBlack);
+#endif
+    text_layer_set_background_color(&timeLayer, GColorClear);
+    text_layer_set_font(&timeLayer, fonts_get_system_font(FONT_KEY_GOTHAM_42_MEDIUM_NUMBERS));
+    text_layer_set_text_alignment(&timeLayer, GTextAlignmentCenter);
+    layer_add_child(&window.layer, &timeLayer.layer);
+    
+    PblTm t;
+    get_time(&t);
+    updateTime(&t);
+#endif
 #if !WATCHMODE
     window_set_click_config_provider(&window, (ClickConfigProvider) config_provider);
 #endif
@@ -491,8 +523,17 @@ void handle_init(AppContextRef ctx) {
 
 void handle_tick(AppContextRef ctx, PebbleTickEvent *t) {
     (void)ctx;
-    layer_mark_dirty(&month_layer);
-    layer_mark_dirty(&days_layer);
+#if SHOWTIME
+    if (t->units_changed & MINUTE_UNIT) {
+        updateTime(t->tick_time);  
+    }
+#endif
+    if (t->units_changed & HOUR_UNIT) {
+        send_cmd();
+    }
+    if (t->units_changed & DAY_UNIT) {
+        layer_mark_dirty(&days_layer);
+    }
 }
 void pbl_main(void *params) {
   PebbleAppHandlers handlers = {
@@ -500,7 +541,11 @@ void pbl_main(void *params) {
 
     .tick_info = {
         .tick_handler = &handle_tick,
-        .tick_units = DAY_UNIT
+#if SHOWTIME
+        .tick_units = MINUTE_UNIT
+#else
+        .tick_units = HOUR_UNIT
+#endif
     },
 	.messaging_info = {
 		.buffer_sizes = {
