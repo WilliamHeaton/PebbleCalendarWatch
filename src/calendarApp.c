@@ -43,12 +43,12 @@ static int offset = 0;
 Window window;
 Layer month_layer;
 Layer days_layer;
-bool calEvents[31] = {  false,false,false,false,false,
+bool calEvents[32] = {  false,false,false,false,false,
                         false,false,false,false,false,
                         false,false,false,false,false,
                         false,false,false,false,false,
                         false,false,false,false,false,
-                        false,false,false,false,false,false};
+                        false,false,false,false,false,false,false};
 
 char* intToStr(int val){
  	static char buf[32] = {0};
@@ -334,17 +334,23 @@ void month_layer_update_callback(Layer *me, GContext* ctx) {
 }
 
 
-static void send_cmd() {
-    
-    for (int i = 0; i < 31; ++i){
-        calEvents[i] = false;
-    }
-    
+static void send_cmd(){
+        
     PblTm currentTime;
     get_time(&currentTime);
+        
+    int year = currentTime.tm_year;
+    int month = currentTime.tm_mon+offset ;
     
-    Tuplet year = TupletInteger(1, currentTime.tm_year+1900);
-    Tuplet month = TupletInteger(2, currentTime.tm_mon+offset );
+    while(month>11){
+        month -= 12;
+        year++;
+    }
+    while(month<0){
+        month += 12;
+        year--;
+    }
+    Tuplet tup = TupletInteger(1, year*100+month);
 
     DictionaryIterator *iter;
     app_message_out_get(&iter);
@@ -352,12 +358,21 @@ static void send_cmd() {
     if (iter == NULL)
         return;
     
-    dict_write_tuplet(iter, &month);
-    dict_write_tuplet(iter, &year);
+    dict_write_tuplet(iter, &tup);
     dict_write_end(iter);
 
     app_message_out_send();
     app_message_out_release();
+}
+static void monthChanged(){
+
+    for (int i = 0; i < 31; ++i){
+        calEvents[i] = false;
+    }
+    send_cmd();
+    
+    layer_mark_dirty(&month_layer);
+    layer_mark_dirty(&days_layer);
 }
 void my_out_sent_handler(DictionaryIterator *sent, void *context) {
   // outgoing message was delivered
@@ -370,37 +385,49 @@ void my_in_rcv_handler(DictionaryIterator *received, void *context) {
     
     PblTm currentTime;
     get_time(&currentTime);
-    uint8_t year = currentTime.tm_year+1900;
-    uint8_t month = currentTime.tm_mon+offset ;
+    int year = currentTime.tm_year;
+    int month = currentTime.tm_mon+offset ;
     
+    while(month>11){
+        month -= 12;
+        year++;
+    }
+    while(month<0){
+        month += 12;
+        year--;
+    }
+    
+    uint16_t dta;
     int y = 0;
     int m = 0;
-    char days[31];
+    uint8_t *encoded = 0;
     
     Tuple *tuple = dict_read_first(received);
     while (tuple) {
         switch (tuple->key) {
             case 1:
-                y = tuple->value->uint8;
-                break;
-            case 2:
-                m = tuple->value->uint8;
+                dta = tuple->value->uint16;
+                m = dta%100;
+                y = (dta-m)/100;
                 break;
             case 3:
-                strncpy(days, tuple->value->cstring, 31);
+                encoded = tuple->value->data;
                 break;
         }
         tuple = dict_read_next(received);
     }
     
-    if(m==month && y == year){
-    
-        for (int i = 0; i < 31; ++i){
-            calEvents[i] = days[i] == '1';
+    if((m==month && y == year) ){
+        int index;
+        for (int byteIndex = 0;  byteIndex < 4; byteIndex++){
+            for (int bitIndex = 0;  bitIndex < 8; bitIndex++){
+                index = byteIndex*8+bitIndex;
+                calEvents[index] = (encoded[byteIndex] & (1 << bitIndex)) != 0;
+            }
         }
         layer_mark_dirty(&days_layer);
     }else{
-        send_cmd();    
+        send_cmd();
     }
 }
 void my_in_drp_handler(void *context, AppMessageResult reason) {
@@ -413,29 +440,21 @@ void up_single_click_handler(ClickRecognizerRef recognizer, Window *window) {
     (void)recognizer;
     (void)window;
     offset--;
-    
-    send_cmd();
-    layer_mark_dirty(&month_layer);
-    layer_mark_dirty(&days_layer);
+    monthChanged();
 }
-
-
 void down_single_click_handler(ClickRecognizerRef recognizer, Window *window) {
     (void)recognizer;
     (void)window;
     offset++;
-    send_cmd();
-    layer_mark_dirty(&month_layer);
-    layer_mark_dirty(&days_layer);
+    monthChanged();
 }
-
 void select_single_click_handler(ClickRecognizerRef recognizer, Window *window) {
     (void)recognizer;
     (void)window;
-    offset = 0;
-    send_cmd();
-    layer_mark_dirty(&month_layer);
-    layer_mark_dirty(&days_layer);
+    if(offset != 0){
+        offset = 0;
+        monthChanged();
+    }
 }
 
 void config_provider(ClickConfig **config, Window *window) {
@@ -485,8 +504,8 @@ void pbl_main(void *params) {
     },
 	.messaging_info = {
 		.buffer_sizes = {
-			.inbound = 100,
-			.outbound = 40,
+			.inbound = 22,
+			.outbound = 16,
 		},
         .default_callbacks.callbacks = {
             .out_sent = my_out_sent_handler,
