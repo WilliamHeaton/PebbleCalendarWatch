@@ -365,13 +365,48 @@ static void send_cmd(){
     }
 
 }
-static void monthChanged(){
+void processEncoded(uint8_t encoded[42]){
+    int index;
+        for (int byteIndex = 0;  byteIndex < 4; byteIndex++){
+            for (int bitIndex = 0;  bitIndex < 8; bitIndex++){
+                index = byteIndex*8+bitIndex;
+                calEvents[index] = (encoded[byteIndex] & (1 << bitIndex)) != 0;
+            }
+        }
+}
+void clearCalEvents(){
 
+    time_t now = time(NULL);
+    struct tm *currentTime = localtime(&now);
+        
+    int year = currentTime->tm_year;
+    int month = currentTime->tm_mon+offset ;
+    
+    while(month>11){
+        month -= 12;
+        year++;
+    }
+    while(month<0){
+        month += 12;
+        year--;
+    }
+    
     for (int i = 0; i < 31; ++i){
         calEvents[i] = false;
     }
-    send_cmd();
     
+    if(persist_exists(year*100+month)){
+        uint8_t encoded[42];
+        persist_read_data(year*100+month, encoded, 8);
+        processEncoded(encoded);
+    }
+
+}
+
+static void monthChanged(){
+
+    clearCalEvents();
+    send_cmd();
     
     layer_mark_dirty(days_layer);
 }
@@ -395,7 +430,7 @@ void my_in_rcv_handler(DictionaryIterator *received, void *context) {
     }
     
     app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"Message Recieved");
-    uint16_t dta;
+    uint16_t dta = 0;
     int y = 0;
     int m = 0;
     uint8_t *encoded = 0;
@@ -415,15 +450,11 @@ void my_in_rcv_handler(DictionaryIterator *received, void *context) {
         }
         tuple = dict_read_next(received);
     }
-    
+    if(dta!=0){
+        persist_write_data(dta, encoded, sizeof(encoded));
+    }
     if((m==month && y == year) ){
-        int index;
-        for (int byteIndex = 0;  byteIndex < 4; byteIndex++){
-            for (int bitIndex = 0;  bitIndex < 8; bitIndex++){
-                index = byteIndex*8+bitIndex;
-                calEvents[index] = (encoded[byteIndex] & (1 << bitIndex)) != 0;
-            }
-        }
+        processEncoded(encoded);
         layer_mark_dirty(days_layer);
     }else{
         send_cmd();
@@ -470,9 +501,14 @@ static void handle_tick(struct tm *tick_time, TimeUnits units_changed) {
 }
 
 void init() {
-  
+    
+    clearCalEvents();
+    app_comm_set_sniff_interval(SNIFF_INTERVAL_REDUCED);
+    app_message_open(app_message_inbox_size_maximum(), app_message_outbox_size_maximum());
+    app_message_register_inbox_received(my_in_rcv_handler);
+    
     window = window_create();
-
+    
     window_set_fullscreen(window, true);
 #if !WATCHMODE
     window_set_click_config_provider(window, (ClickConfigProvider) click_config_provider);
@@ -484,20 +520,10 @@ void init() {
 #endif    
 
     window_stack_push(window, false);
-
-#if SHOWTIME
-    tick_timer_service_subscribe(MINUTE_UNIT, handle_tick);
-#else
-    tick_timer_service_subscribe(HOUR_UNIT, handle_tick);
-#endif
-
-
     
     Layer *window_layer = window_get_root_layer(window);
     
-    
     days_layer = layer_create(layer_get_bounds(window_layer));
-    
     layer_set_update_proc(days_layer, days_layer_update_callback);
     layer_add_child(window_layer, days_layer);
 
@@ -516,18 +542,19 @@ void init() {
     layer_add_child(window_layer, text_layer_get_layer(timeLayer));
     
     time_t now = time(NULL);
-    struct tm *t = localtime(&now);
-    updateTime(t);
+    struct tm *currentTime = localtime(&now);
+    updateTime(currentTime);
 #endif
 
-    app_comm_set_sniff_interval(SNIFF_INTERVAL_REDUCED);
-    // Init buffers
-    app_message_open(app_message_inbox_size_maximum(), app_message_outbox_size_maximum());
-    // Register message handlers
-    app_message_register_inbox_received(my_in_rcv_handler);
 
-    send_cmd();
-    
+
+#if SHOWTIME
+    tick_timer_service_subscribe(MINUTE_UNIT, handle_tick);
+#else
+    tick_timer_service_subscribe(HOUR_UNIT, handle_tick);
+#endif
+
+    app_timer_register(500,send_cmd,NULL);
 }
 
 static void deinit(void) {
