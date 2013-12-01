@@ -5,12 +5,12 @@
 #include "resource_ids.auto.h"
 
 
-#define WATCHMODE false
+#define WATCHMODE true
 
 #define BLACK true
 #define GRID true
 #define INVERT true
-#define SHOWTIME false
+#define SHOWTIME true
 
 // First day of the week. Values can be between -6 and 6 
 // 0 = weeks start on Sunday
