@@ -1,55 +1,32 @@
-#include "pebble_os.h"
-#include "pebble_app.h"
-#include "pebble_fonts.h"
+#include <pebble.h>
 #include <math.h>
-#include "resource_ids.auto.h"
 
 
-#define WATCHMODE true
+#define WATCHMODE false
 
 #define BLACK true
 #define GRID true
 #define INVERT true
 #define SHOWTIME true
-
 // First day of the week. Values can be between -6 and 6 
 // 0 = weeks start on Sunday
 // 1 =  weeks start on Monday
 #define START_OF_WEEK 0
-
 const char daysOfWeek[7][3] = {"S","M","T","W","Th","F","S"};
 const char months[12][12] = {"January","Feburary","March","April","May","June","July","August","September","October", "November", "December"};
 
-
-
-
-#define APP_UUID { 0xB4, 0x1E, 0x3D, 0xCF, 0x61, 0x62, 0x41, 0x47, 0x9C, 0x58, 0x64, 0x3E, 0x10, 0x91, 0xFB, 0x93 }
-#define WATCH_UUID { 0x8C, 0x77, 0x18, 0xB5, 0x81, 0x58, 0x48, 0xD9, 0x9D, 0x81, 0x1E, 0x3A, 0xB2, 0x32, 0xC9, 0x5C }
-
-#if WATCHMODE
-PBL_APP_INFO(WATCH_UUID,
-             "Calendar", "William Heaton",
-             1, 0, /* App version */
-             RESOURCE_ID_IMAGE_MENU_ICON,
-             APP_INFO_WATCH_FACE);
-#else
-PBL_APP_INFO(APP_UUID,
-             "Calendar", "William Heaton",
-             1, 0, /* App version */
-             RESOURCE_ID_IMAGE_MENU_ICON,
-             APP_INFO_STANDARD_APP);
-#endif
-
 static int offset = 0;
-Window window;
-Layer days_layer;
+
+static Window *window;
+static Layer *days_layer;
+
 #if SHOWTIME
-TextLayer timeLayer;
+static TextLayer *timeLayer;
 int curHour;
 int curMin;
 int curSec;
-
 #endif
+
 bool calEvents[32] = {  false,false,false,false,false,
                         false,false,false,false,false,
                         false,false,false,false,false,
@@ -107,12 +84,12 @@ int daysInMonth(int mon, int year){
 }
 void setColors(GContext* ctx){
 #if BLACK
-        window_set_background_color(&window, GColorBlack);
+        window_set_background_color(window, GColorBlack);
         graphics_context_set_stroke_color(ctx, GColorWhite);
         graphics_context_set_fill_color(ctx, GColorBlack);
         graphics_context_set_text_color(ctx, GColorWhite);
 #else
-        window_set_background_color(&window, GColorWhite);
+        window_set_background_color(window, GColorWhite);
         graphics_context_set_stroke_color(ctx, GColorBlack);
         graphics_context_set_fill_color(ctx, GColorWhite);
         graphics_context_set_text_color(ctx, GColorBlack);
@@ -120,7 +97,7 @@ void setColors(GContext* ctx){
 }
 void setInvColors(GContext* ctx){
 #if BLACK
-        window_set_background_color(&window, GColorWhite);
+        window_set_background_color(window, GColorWhite);
         graphics_context_set_stroke_color(ctx, GColorBlack);
         graphics_context_set_fill_color(ctx, GColorWhite);
         graphics_context_set_text_color(ctx, GColorBlack);
@@ -133,15 +110,17 @@ void setInvColors(GContext* ctx){
 
 
 void days_layer_update_callback(Layer *me, GContext* ctx) {
-    (void)me;
     
     int j;
     int i;
+    setColors(ctx);
     
-    PblTm currentTime;
-    get_time(&currentTime);
-    int mon = currentTime.tm_mon;
-    int year = currentTime.tm_year+1900;
+    time_t now = time(NULL);
+    struct tm *currentTime = localtime(&now);
+
+
+    int mon = currentTime->tm_mon;
+    int year = currentTime->tm_year+1900;
     
     // Figure out which month & year we are going to be looking at based on the selected offset
     // Calculate how many days are between the first of this month and the first of the month we are interested in
@@ -170,7 +149,7 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
     int dom = daysInMonth(mon,year);
     
     // Day of the week for the first day in the target month 
-    int dow = wdayOfFirstOffset(currentTime.tm_wday,currentTime.tm_mday,od);
+    int dow = wdayOfFirstOffset(currentTime->tm_wday,currentTime->tm_mday,od);
     
     // Adjust day of week by specified offset
     dow -= START_OF_WEEK;
@@ -204,7 +183,6 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
     int cl = l+1;
     int ch = bh-1;
         
-    setColors(ctx);
 
 #if GRID
     // Draw the Gridlines
@@ -225,7 +203,7 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
         j = i+START_OF_WEEK;
         if(j>6) j-=7;
         if(j<0) j+=7;
-        graphics_text_draw(
+        graphics_draw_text(
             ctx, 
             daysOfWeek[j], 
             fonts_get_system_font(FONT_KEY_GOTHIC_14), 
@@ -253,7 +231,7 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
 
 #if INVERT
         // Is this today?  If so prep special today style
-        if(i==currentTime.tm_mday && offset == 0){
+        if(i==currentTime->tm_mday && offset == 0){
             setInvColors(ctx);
             graphics_fill_rect(
                 ctx,
@@ -281,7 +259,7 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
         }
         
         // Draw the day
-        graphics_text_draw(
+        graphics_draw_text(
             ctx, 
             intToStr(i),  
             font, 
@@ -296,7 +274,7 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
         
 #if INVERT
         // Fix colors if inverted
-        if(offset == 0 && i==currentTime.tm_mday ) setColors(ctx);
+        if(offset == 0 && i==currentTime->tm_mday ) setColors(ctx);
 #endif
 
         // and on to the next day
@@ -306,7 +284,7 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
     
 #if WATCHMODE
     char str[20] = ""; 
-    string_format_time(str, sizeof(str), "%B %d, %Y", &currentTime);
+    strftime(str, sizeof(str), "%B %d, %Y", &currentTime);
 #else
     // Build the MONTH YEAR string
     char str[20];
@@ -316,7 +294,7 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
 #endif
 
     // Draw the MONTH/YEAR String
-    graphics_text_draw(
+    graphics_draw_text(
         ctx, 
         str,  
         fonts_get_system_font(FONT_KEY_GOTHIC_24), 
@@ -331,7 +309,7 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
 }
 
 #if SHOWTIME
-void updateTime(PblTm * t){
+void updateTime(struct tm * t){
 
     curHour=t->tm_hour;
     curMin=t->tm_min;
@@ -339,27 +317,27 @@ void updateTime(PblTm * t){
     
     static char timeText[] = "00:00";
     if(clock_is_24h_style()){
-        string_format_time(timeText, sizeof(timeText), "%H:%M", t);
+        strftime(timeText, sizeof(timeText), "%H:%M", t);
         if(curHour<10)memmove(timeText, timeText+1, strlen(timeText)); 
     }else{
-        string_format_time(timeText, sizeof(timeText), "%I:%M", t);
+        strftime(timeText, sizeof(timeText), "%I:%M", t);
         if( (curHour > 0 && curHour<10) || (curHour>12 && curHour<22))memmove(timeText, timeText+1, strlen(timeText)); 
-    }text_layer_set_text(&timeLayer, timeText);
+    }text_layer_set_text(timeLayer, timeText);
     
     
 //    static char dateText[30];
-//    string_format_time(dateText, sizeof(dateText), "%B %d", t);//"%A\n%B %d", t);
+//    strftime(dateText, sizeof(dateText), "%B %d", t);//"%A\n%B %d", t);
 //    text_layer_set_text(&dateLayer, dateText);
 }
 #endif
 
 static void send_cmd(){
         
-    PblTm currentTime;
-    get_time(&currentTime);
+    time_t now = time(NULL);
+    struct tm *currentTime = localtime(&now);
         
-    int year = currentTime.tm_year;
-    int month = currentTime.tm_mon+offset ;
+    int year = currentTime->tm_year;
+    int month = currentTime->tm_mon+offset ;
     
     while(month>11){
         month -= 12;
@@ -369,19 +347,23 @@ static void send_cmd(){
         month += 12;
         year--;
     }
-    Tuplet tup = TupletInteger(1, year*100+month);
 
     DictionaryIterator *iter;
-    app_message_out_get(&iter);
 
-    if (iter == NULL)
+    if (app_message_outbox_begin(&iter) != APP_MSG_OK) {
+        app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"App MSG Not ok");
         return;
-    
-    dict_write_tuplet(iter, &tup);
-    dict_write_end(iter);
+    }    
+    if (dict_write_uint16(iter, 1, ((uint16_t)year*100+month)) != DICT_OK) {
+        app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"Dict Not ok");
+        return;
+    }
+    if (app_message_outbox_send() != APP_MSG_OK){
+        app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"Message Not Sent");
+    }else{
+        app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"Message Sent");
+    }
 
-    app_message_out_send();
-    app_message_out_release();
 }
 static void monthChanged(){
 
@@ -391,21 +373,17 @@ static void monthChanged(){
     send_cmd();
     
     
-    layer_mark_dirty(&days_layer);
+    layer_mark_dirty(days_layer);
 }
-void my_out_sent_handler(DictionaryIterator *sent, void *context) {
-  // outgoing message was delivered
-}
-void my_out_fail_handler(DictionaryIterator *failed, AppMessageResult reason, void *context) {
-  // outgoing message failed
-}
+
 void my_in_rcv_handler(DictionaryIterator *received, void *context) {
     // incoming message received
     
-    PblTm currentTime;
-    get_time(&currentTime);
-    int year = currentTime.tm_year;
-    int month = currentTime.tm_mon+offset ;
+        
+    time_t now = time(NULL);
+    struct tm *currentTime = localtime(&now);
+    int year = currentTime->tm_year;
+    int month = currentTime->tm_mon+offset ;
     
     while(month>11){
         month -= 12;
@@ -416,6 +394,7 @@ void my_in_rcv_handler(DictionaryIterator *received, void *context) {
         year--;
     }
     
+    app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"Message Recieved");
     uint16_t dta;
     int y = 0;
     int m = 0;
@@ -428,6 +407,7 @@ void my_in_rcv_handler(DictionaryIterator *received, void *context) {
                 dta = tuple->value->uint16;
                 m = dta%100;
                 y = (dta-m)/100;
+                
                 break;
             case 3:
                 encoded = tuple->value->data;
@@ -444,123 +424,124 @@ void my_in_rcv_handler(DictionaryIterator *received, void *context) {
                 calEvents[index] = (encoded[byteIndex] & (1 << bitIndex)) != 0;
             }
         }
-        layer_mark_dirty(&days_layer);
+        layer_mark_dirty(days_layer);
     }else{
         send_cmd();
     }
 }
-void my_in_drp_handler(void *context, AppMessageResult reason) {
-  // incoming message dropped
-}
 
 
 #if !WATCHMODE
-void up_single_click_handler(ClickRecognizerRef recognizer, Window *window) {
-    (void)recognizer;
-    (void)window;
+void up_single_click_handler(ClickRecognizerRef recognizer, void *context) {
     offset--;
     monthChanged();
 }
-void down_single_click_handler(ClickRecognizerRef recognizer, Window *window) {
-    (void)recognizer;
-    (void)window;
+void down_single_click_handler(ClickRecognizerRef recognizer, void *context) {
     offset++;
     monthChanged();
 }
-void select_single_click_handler(ClickRecognizerRef recognizer, Window *window) {
-    (void)recognizer;
-    (void)window;
+void select_single_click_handler(ClickRecognizerRef recognizer, void *context) {
     if(offset != 0){
         offset = 0;
         monthChanged();
     }
 }
-
-void config_provider(ClickConfig **config, Window *window) {
-    (void)window;
-    config[BUTTON_ID_SELECT]->click.handler = (ClickHandler) select_single_click_handler;
-    config[BUTTON_ID_UP]->click.handler = (ClickHandler) up_single_click_handler;
-    config[BUTTON_ID_UP]->click.repeat_interval_ms = 100;
-    config[BUTTON_ID_DOWN]->click.handler = (ClickHandler) down_single_click_handler;
-    config[BUTTON_ID_DOWN]->click.repeat_interval_ms = 100;
+static void click_config_provider(void* context){
+    
+    window_single_click_subscribe(          BUTTON_ID_SELECT,  select_single_click_handler);
+    window_single_repeating_click_subscribe(BUTTON_ID_UP  , 100,   up_single_click_handler);
+    window_single_repeating_click_subscribe(BUTTON_ID_DOWN, 100, down_single_click_handler);
+    
 }
 #endif
 
-
-void handle_init(AppContextRef ctx) {
-  (void)ctx;
-    window_init(&window, "Calendar");
-    window_stack_push(&window, false /* Animated */);
-    window_set_fullscreen(&window, true);
-    
-    setColors(ctx);
-    
-    layer_init(&days_layer, window.layer.frame);
-    days_layer.update_proc = &days_layer_update_callback;
-    layer_add_child(&window.layer, &days_layer);
-
+static void handle_tick(struct tm *tick_time, TimeUnits units_changed) {
 #if SHOWTIME
-    text_layer_init(&timeLayer, GRect(0, -6, 144, 43));
-#if BLACK
-    text_layer_set_text_color(&timeLayer, GColorWhite);
-#else
-    text_layer_set_text_color(&timeLayer, GColorBlack);
-#endif
-    text_layer_set_background_color(&timeLayer, GColorClear);
-    text_layer_set_font(&timeLayer, fonts_get_system_font(FONT_KEY_GOTHAM_42_MEDIUM_NUMBERS));
-    text_layer_set_text_alignment(&timeLayer, GTextAlignmentCenter);
-    layer_add_child(&window.layer, &timeLayer.layer);
-    
-    PblTm t;
-    get_time(&t);
-    updateTime(&t);
-#endif
-#if !WATCHMODE
-    window_set_click_config_provider(&window, (ClickConfigProvider) config_provider);
-#endif
-    send_cmd();
-}
-
-void handle_tick(AppContextRef ctx, PebbleTickEvent *t) {
-    (void)ctx;
-#if SHOWTIME
-    if (t->units_changed & MINUTE_UNIT) {
-        updateTime(t->tick_time);  
+    if (units_changed & MINUTE_UNIT) {
+        updateTime(tick_time);  
     }
 #endif
-    if (t->units_changed & HOUR_UNIT) {
+    if (units_changed & HOUR_UNIT) {
         send_cmd();
     }
-    if (t->units_changed & DAY_UNIT) {
-        layer_mark_dirty(&days_layer);
+    if (units_changed & DAY_UNIT) {
+        layer_mark_dirty(days_layer);
     }
 }
-void pbl_main(void *params) {
-  PebbleAppHandlers handlers = {
-    .init_handler = &handle_init,
 
-    .tick_info = {
-        .tick_handler = &handle_tick,
-#if SHOWTIME
-        .tick_units = MINUTE_UNIT
-#else
-        .tick_units = HOUR_UNIT
+void init() {
+  
+    window = window_create();
+
+    window_set_fullscreen(window, true);
+#if !WATCHMODE
+    window_set_click_config_provider(window, (ClickConfigProvider) click_config_provider);
 #endif
-    },
-	.messaging_info = {
-		.buffer_sizes = {
-			.inbound = 22,
-			.outbound = 16,
-		},
-        .default_callbacks.callbacks = {
-            .out_sent = my_out_sent_handler,
-            .out_failed = my_out_fail_handler,
-            .in_received = my_in_rcv_handler,
-            .in_dropped = my_in_drp_handler,
-        }
-	}
-  };
-  app_event_loop(params, &handlers);
+#if BLACK
+        window_set_background_color(window, GColorBlack);
+#else
+        window_set_background_color(window, GColorWhite);
+#endif    
+
+    window_stack_push(window, false);
+
+#if SHOWTIME
+    tick_timer_service_subscribe(MINUTE_UNIT, handle_tick);
+#else
+    tick_timer_service_subscribe(HOUR_UNIT, handle_tick);
+#endif
+
+
+    
+    Layer *window_layer = window_get_root_layer(window);
+    
+    
+    days_layer = layer_create(layer_get_bounds(window_layer));
+    
+    layer_set_update_proc(days_layer, days_layer_update_callback);
+    layer_add_child(window_layer, days_layer);
+
+    
+
+#if SHOWTIME
+    timeLayer = text_layer_create( GRect(0, -6, 144, 43));
+#if BLACK
+    text_layer_set_text_color(timeLayer, GColorWhite);
+#else
+    text_layer_set_text_color(timeLayer, GColorBlack);
+#endif
+    text_layer_set_background_color(timeLayer, GColorClear);
+    text_layer_set_font(timeLayer, fonts_get_system_font(FONT_KEY_BITHAM_42_MEDIUM_NUMBERS));
+    text_layer_set_text_alignment(timeLayer, GTextAlignmentCenter);
+    layer_add_child(window_layer, text_layer_get_layer(timeLayer));
+    
+    time_t now = time(NULL);
+    struct tm *t = localtime(&now);
+    updateTime(t);
+#endif
+
+    app_comm_set_sniff_interval(SNIFF_INTERVAL_REDUCED);
+    // Init buffers
+    app_message_open(app_message_inbox_size_maximum(), app_message_outbox_size_maximum());
+    // Register message handlers
+    app_message_register_inbox_received(my_in_rcv_handler);
+
+    send_cmd();
+    
 }
 
+static void deinit(void) {
 
+    layer_destroy(days_layer);
+#if SHOWTIME
+    text_layer_destroy(timeLayer);
+#endif
+    tick_timer_service_unsubscribe();
+    window_destroy(window);
+}
+
+int main(void) {
+  init();
+  app_event_loop();
+  deinit();
+}
