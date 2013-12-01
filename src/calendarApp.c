@@ -347,23 +347,21 @@ static void send_cmd(){
         month += 12;
         year--;
     }
+    if(year*100+month>0){
+        DictionaryIterator *iter;
 
-    DictionaryIterator *iter;
-
-    if (app_message_outbox_begin(&iter) != APP_MSG_OK) {
-        app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"App MSG Not ok");
-        return;
-    }    
-    if (dict_write_uint16(iter, 1, ((uint16_t)year*100+month)) != DICT_OK) {
-        app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"Dict Not ok");
-        return;
+        if (app_message_outbox_begin(&iter) != APP_MSG_OK) {
+            app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"App MSG Not ok");
+            return;
+        }    
+        if (dict_write_uint16(iter, 1, ((uint16_t)year*100+month)) != DICT_OK) {
+            app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"Dict Not ok");
+            return;
+        }
+        if (app_message_outbox_send() != APP_MSG_OK){
+            app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"Message Not Sent");
+        }
     }
-    if (app_message_outbox_send() != APP_MSG_OK){
-        app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"Message Not Sent");
-    }else{
-        app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"Message Sent");
-    }
-
 }
 void processEncoded(uint8_t encoded[42]){
     int index;
@@ -395,7 +393,7 @@ void clearCalEvents(){
         calEvents[i] = false;
     }
     
-    if(persist_exists(year*100+month)){
+    if(year*100+month > 0 && persist_exists(year*100+month)){
         uint8_t encoded[42];
         persist_read_data(year*100+month, encoded, 8);
         processEncoded(encoded);
@@ -429,7 +427,6 @@ void my_in_rcv_handler(DictionaryIterator *received, void *context) {
         year--;
     }
     
-    app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"Message Recieved");
     uint16_t dta = 0;
     int y = 0;
     int m = 0;
@@ -450,7 +447,7 @@ void my_in_rcv_handler(DictionaryIterator *received, void *context) {
         }
         tuple = dict_read_next(received);
     }
-    if(dta!=0){
+    if(dta>0){
         persist_write_data(dta, encoded, sizeof(encoded));
     }
     if((m==month && y == year) ){
