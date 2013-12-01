@@ -351,15 +351,15 @@ static void send_cmd(){
         DictionaryIterator *iter;
 
         if (app_message_outbox_begin(&iter) != APP_MSG_OK) {
-            app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"App MSG Not ok");
+           // app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"App MSG Not ok");
             return;
         }    
         if (dict_write_uint16(iter, 1, ((uint16_t)year*100+month)) != DICT_OK) {
-            app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"Dict Not ok");
+         //   app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"Dict Not ok");
             return;
         }
         if (app_message_outbox_send() != APP_MSG_OK){
-            app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"Message Not Sent");
+          //  app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"Message Not Sent");
         }
     }
 }
@@ -477,9 +477,13 @@ void select_single_click_handler(ClickRecognizerRef recognizer, void *context) {
 static void click_config_provider(void* context){
     
     window_single_click_subscribe(          BUTTON_ID_SELECT,  select_single_click_handler);
-    window_single_repeating_click_subscribe(BUTTON_ID_UP  , 100,   up_single_click_handler);
-    window_single_repeating_click_subscribe(BUTTON_ID_DOWN, 100, down_single_click_handler);
-    
+// Up and Down should be repeating clicks, but due to bug in 2.0 firmware repeating clicks cause watch to crash
+//  window_single_repeating_click_subscribe(BUTTON_ID_UP  , 100,   up_single_click_handler);
+//  window_single_repeating_click_subscribe(BUTTON_ID_DOWN, 100, down_single_click_handler);
+    window_single_click_subscribe(BUTTON_ID_UP  ,   up_single_click_handler);
+    window_single_click_subscribe(BUTTON_ID_DOWN,   down_single_click_handler);
+
+   
 }
 #endif
 
