@@ -2,38 +2,35 @@ Calendar App for Pebble
 
 This is an app for the Pebble Watch.  It shows a month view calendar.
 
+When paired with the Pebble Calendar Android app, it will monitor your phone's calendar and display days with events in Bold.
+https://play.google.com/store/apps/details?id=wgheaton.pebblecalendar
+
+As an App:
+
 Up Button moves to previous month.
 Down Button moves to next month.
 Center Button returns to current month.
 
-Near the top of calendarApp.c you will find the following flags for configuring the appearance of the calendar.
+As a Watchface:
 
-black:
-        true  = White text on Black Background
-        false = Black text on White Background
+Always shows current month (Watchfaces can not respond to buttons)
 
-grid:
-        true  = Draws horizontal and vertical lines between the rows and columns
-        false = Does not draw said lines
+The published code will compile as an App.  To change it to compile as a watchface the following changes are required.
 
-invert
-        true  = Todays date will be larger & bold and the Text & Background colors will be inverted
-        false = Todays date will be larger & bold
+Near the top of calendarApp.c change #define WATCHMODE false to true.
+In appinfo.json change watchface to true and replace the UUID with the watchface. 
 
+
+For easy localization, the following arrays defined near the top of calendarApp.c can be modified.
 
 daysOfWeek
-        array that holds the text used for the column headings
+        holds the text used for the column headings
 
 months
-        array that holds the text used for the month text displayed at the top of the app.
+        holds the text used for the month text displayed at the top of the app.
 
-dayOfWeekOffset
-        Offset days of week. Values can be between -6 and 6 
-        0 = weeks start on Sunday
-        1 = weeks start on Monday
-        2 = weeks start on Tuesday 
-        
-        
+IMPORTANT, the current version requires Pebble SDKv2.0 and will only run on watches that have been updated to Firmware 2.0 or later.  The last version to compatible with SDK/Firmware 1.x can be found here. https://github.com/WilliamHeaton/PebbleCalendarWatch/tree/7cf62b37c3527fc9ff687615d90afc7a6d88edc6
+
         
 Licence
 
