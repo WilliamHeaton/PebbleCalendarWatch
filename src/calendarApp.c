@@ -4,14 +4,33 @@
 
 #define WATCHMODE false
 
-#define BLACK true
-#define GRID true
-#define INVERT true
-#define SHOWTIME true
+
+//Send Keys
+#define GET_EVENT_DAYS 1
+#define GET_SETTINGS 2
+//Recieve Keys
+#define MONTHYEAR_KEY 1
+#define EVENT_DAYS_DATA_KEY 3
+#define SETTINGS_KEY 4
+//Storage Keys
+#define BLACK_KEY 1
+#define GRID_KEY 2
+#define INVERT_KEY 3
+#define SHOWTIME_KEY 4
+
+
+static bool black = true;
+static bool grid = true;
+static bool invert = true;
+static bool showtime = false;
+
 // First day of the week. Values can be between -6 and 6 
 // 0 = weeks start on Sunday
 // 1 =  weeks start on Monday
-#define START_OF_WEEK 0
+static uint32_t start_of_week_key = 1;
+static int start_of_week = 0;
+
+
 const char daysOfWeek[7][3] = {"S","M","T","W","Th","F","S"};
 const char months[12][12] = {"January","Feburary","March","April","May","June","July","August","September","October", "November", "December"};
 
@@ -20,12 +39,10 @@ static int offset = 0;
 static Window *window;
 static Layer *days_layer;
 
-#if SHOWTIME
 static TextLayer *timeLayer;
 int curHour;
 int curMin;
 int curSec;
-#endif
 
 bool calEvents[32] = {  false,false,false,false,false,
                         false,false,false,false,false,
@@ -83,29 +100,29 @@ int daysInMonth(int mon, int year){
         return 31;
 }
 void setColors(GContext* ctx){
-#if BLACK
+    if(black){
         window_set_background_color(window, GColorBlack);
         graphics_context_set_stroke_color(ctx, GColorWhite);
         graphics_context_set_fill_color(ctx, GColorBlack);
         graphics_context_set_text_color(ctx, GColorWhite);
-#else
+    }else{
         window_set_background_color(window, GColorWhite);
         graphics_context_set_stroke_color(ctx, GColorBlack);
         graphics_context_set_fill_color(ctx, GColorWhite);
         graphics_context_set_text_color(ctx, GColorBlack);
-#endif
+    }
 }
 void setInvColors(GContext* ctx){
-#if BLACK
+    if(black){
         window_set_background_color(window, GColorWhite);
         graphics_context_set_stroke_color(ctx, GColorBlack);
         graphics_context_set_fill_color(ctx, GColorWhite);
         graphics_context_set_text_color(ctx, GColorBlack);
-#else
+    }else{
         graphics_context_set_stroke_color(ctx, GColorWhite);
         graphics_context_set_fill_color(ctx, GColorBlack);
         graphics_context_set_text_color(ctx, GColorWhite);
-#endif
+    }
 }
 
 
@@ -152,7 +169,7 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
     int dow = wdayOfFirstOffset(currentTime->tm_wday,currentTime->tm_mday,od);
     
     // Adjust day of week by specified offset
-    dow -= START_OF_WEEK;
+    dow -= start_of_week;
     if(dow>6) dow-=7;
     if(dow<0) dow+=7;
     
@@ -164,18 +181,18 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
     int lw = 20;    // width of columns 
     int w = ceil(((float) dow + (float) dom)/7); // number of weeks this month
     
-#if SHOWTIME
-    int bh;
-    if(w == 4)      bh = 21;
-    else if(w == 5) bh = 17;
-    else            bh = 14;
-#else    
-    // How tall rows should be depends on how many weeks there are
-    int bh;
-    if(w == 4)      bh = 30;
-    else if(w == 5) bh = 24;
-    else            bh = 20;
-#endif
+
+    int bh = 21;
+    if(showtime){
+        if(w == 4)      bh = 21;
+        else if(w == 5) bh = 17;
+        else            bh = 14;
+    }else{
+        // How tall rows should be depends on how many weeks there are
+        if(w == 4)      bh = 30;
+        else if(w == 5) bh = 24;
+        else            bh = 20;
+    }
 
     int r = l+d*lw; // position of right side of right column
     int t = b-w*bh; // position of top of top row
@@ -184,23 +201,23 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
     int ch = bh-1;
         
 
-#if GRID
-    // Draw the Gridlines
-    // horizontal lines
-    for(i=1;i<=w;i++){
-        graphics_draw_line(ctx, GPoint(l, b-i*bh), GPoint(r, b-i*bh));
+    if(grid){
+        // Draw the Gridlines
+        // horizontal lines
+        for(i=1;i<=w;i++){
+            graphics_draw_line(ctx, GPoint(l, b-i*bh), GPoint(r, b-i*bh));
+        }
+        // vertical lines
+        for(i=1;i<d;i++){
+            graphics_draw_line(ctx, GPoint(l+i*lw, t), GPoint(l+i*lw, b));
+        }
     }
-    // vertical lines
-    for(i=1;i<d;i++){
-        graphics_draw_line(ctx, GPoint(l+i*lw, t), GPoint(l+i*lw, b));
-    }
-#endif
 
     // Draw days of week
     for(i=0;i<7;i++){
     
         // Adjust labels by specified offset
-        j = i+START_OF_WEEK;
+        j = i+start_of_week;
         if(j>6) j-=7;
         if(j<0) j+=7;
         graphics_draw_text(
@@ -229,21 +246,21 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
             wknum ++;
         }
 
-#if INVERT
-        // Is this today?  If so prep special today style
-        if(i==currentTime->tm_mday && offset == 0){
-            setInvColors(ctx);
-            graphics_fill_rect(
-                ctx,
-                GRect(
-                    l+dow*lw+1, 
-                    b-(w-wknum)*bh+1, 
-                    cw, 
-                    ch)
-                ,0
-                ,GCornerNone);
+        if(invert){
+            // Is this today?  If so prep special today style
+            if(i==currentTime->tm_mday && offset == 0){
+                setInvColors(ctx);
+                graphics_fill_rect(
+                    ctx,
+                    GRect(
+                        l+dow*lw+1, 
+                        b-(w-wknum)*bh+1, 
+                        cw, 
+                        ch)
+                    ,0
+                    ,GCornerNone);
+            }
         }
-#endif
 
         if(calEvents[i-1]){
         
@@ -272,10 +289,9 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
             GTextAlignmentCenter, 
             NULL); 
         
-#if INVERT
         // Fix colors if inverted
-        if(offset == 0 && i==currentTime->tm_mday ) setColors(ctx);
-#endif
+        if(invert)
+            if(offset == 0 && i==currentTime->tm_mday ) setColors(ctx);
 
         // and on to the next day
         dow++;   
@@ -284,7 +300,7 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
     
 #if WATCHMODE
     char str[20] = ""; 
-    strftime(str, sizeof(str), "%B %d, %Y", &currentTime);
+    strftime(str, sizeof(str), "%B %d, %Y", currentTime);
 #else
     // Build the MONTH YEAR string
     char str[20];
@@ -293,22 +309,21 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
     strcat (str,intToStr(year));
 #endif
 
+    GRect rec = GRect(0, 0, 144, 25);
+    if(showtime)
+        rec = GRect(0, 40, 144, 25);
+    
     // Draw the MONTH/YEAR String
     graphics_draw_text(
         ctx, 
         str,  
         fonts_get_system_font(FONT_KEY_GOTHIC_24), 
-#if SHOWTIME
-        GRect(0, 40, 144, 25), 
-#else
-        GRect(0, 0, 144, 25), 
-#endif
+        rec,
         GTextOverflowModeWordWrap, 
         GTextAlignmentCenter, 
         NULL);
 }
 
-#if SHOWTIME
 void updateTime(struct tm * t){
 
     curHour=t->tm_hour;
@@ -322,15 +337,30 @@ void updateTime(struct tm * t){
     }else{
         strftime(timeText, sizeof(timeText), "%I:%M", t);
         if( (curHour > 0 && curHour<10) || (curHour>12 && curHour<22))memmove(timeText, timeText+1, strlen(timeText)); 
-    }text_layer_set_text(timeLayer, timeText);
+    }
+    text_layer_set_text(timeLayer, timeText);
     
     
 //    static char dateText[30];
 //    strftime(dateText, sizeof(dateText), "%B %d", t);//"%A\n%B %d", t);
 //    text_layer_set_text(&dateLayer, dateText);
 }
-#endif
 
+static void get_settings(){
+    DictionaryIterator *iter;
+
+    if (app_message_outbox_begin(&iter) != APP_MSG_OK) {
+       // app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"App MSG Not ok");
+        return;
+    }    
+    if (dict_write_uint8(iter, GET_SETTINGS, ((uint16_t)0)) != DICT_OK) {
+     //   app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"Dict Not ok");
+        return;
+    }
+    if (app_message_outbox_send() != APP_MSG_OK){
+      //  app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"Message Not Sent");
+    }
+}
 static void send_cmd(){
         
     time_t now = time(NULL);
@@ -354,7 +384,7 @@ static void send_cmd(){
            // app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"App MSG Not ok");
             return;
         }    
-        if (dict_write_uint16(iter, 1, ((uint16_t)year*100+month)) != DICT_OK) {
+        if (dict_write_uint16(iter, GET_EVENT_DAYS, ((uint16_t)year*100+month)) != DICT_OK) {
          //   app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"Dict Not ok");
             return;
         }
@@ -363,14 +393,51 @@ static void send_cmd(){
         }
     }
 }
+
+void processSettings(uint8_t encoded[2]){
+
+    black           = (encoded[0] & (1 << 0)) != 0;
+    grid            = (encoded[0] & (1 << 1)) != 0;
+    invert          = (encoded[0] & (1 << 2)) != 0;
+    showtime        = (encoded[0] & (1 << 3)) != 0;
+    start_of_week   = (int) encoded[1];
+
+
+    persist_write_bool(BLACK_KEY, black);
+    persist_write_bool(GRID_KEY, grid);
+    persist_write_bool(INVERT_KEY, invert);
+    persist_write_bool(SHOWTIME_KEY, showtime);
+    persist_write_int(BLACK_KEY, start_of_week);
+    
+    if(black)
+        window_set_background_color(window, GColorBlack);
+    else
+        window_set_background_color(window, GColorWhite);
+    
+    
+    if(showtime){
+    
+        if(black)
+            text_layer_set_text_color(timeLayer, GColorWhite);
+        else
+            text_layer_set_text_color(timeLayer, GColorBlack);
+        time_t now = time(NULL);
+        struct tm *currentTime = localtime(&now);
+        updateTime(currentTime);
+    }
+    else{
+        text_layer_set_text(timeLayer, "");
+    }
+    layer_mark_dirty(days_layer);
+}
 void processEncoded(uint8_t encoded[42]){
     int index;
-        for (int byteIndex = 0;  byteIndex < 4; byteIndex++){
-            for (int bitIndex = 0;  bitIndex < 8; bitIndex++){
-                index = byteIndex*8+bitIndex;
-                calEvents[index] = (encoded[byteIndex] & (1 << bitIndex)) != 0;
-            }
+    for (int byteIndex = 0;  byteIndex < 4; byteIndex++){
+        for (int bitIndex = 0;  bitIndex < 8; bitIndex++){
+            index = byteIndex*8+bitIndex;
+            calEvents[index] = (encoded[byteIndex] & (1 << bitIndex)) != 0;
         }
+    }
 }
 void clearCalEvents(){
 
@@ -401,6 +468,7 @@ void clearCalEvents(){
 
 }
 
+#if !WATCHMODE
 static void monthChanged(){
 
     clearCalEvents();
@@ -408,24 +476,10 @@ static void monthChanged(){
     
     layer_mark_dirty(days_layer);
 }
+#endif
 
 void my_in_rcv_handler(DictionaryIterator *received, void *context) {
     // incoming message received
-    
-        
-    time_t now = time(NULL);
-    struct tm *currentTime = localtime(&now);
-    int year = currentTime->tm_year;
-    int month = currentTime->tm_mon+offset ;
-    
-    while(month>11){
-        month -= 12;
-        year++;
-    }
-    while(month<0){
-        month += 12;
-        year--;
-    }
     
     uint16_t dta = 0;
     int y = 0;
@@ -435,26 +489,43 @@ void my_in_rcv_handler(DictionaryIterator *received, void *context) {
     Tuple *tuple = dict_read_first(received);
     while (tuple) {
         switch (tuple->key) {
-            case 1:
+            case MONTHYEAR_KEY:
                 dta = tuple->value->uint16;
                 m = dta%100;
                 y = (dta-m)/100;
                 
                 break;
-            case 3:
+            case EVENT_DAYS_DATA_KEY:
                 encoded = tuple->value->data;
+                break;
+            case SETTINGS_KEY:
+                processSettings(tuple->value->data);
                 break;
         }
         tuple = dict_read_next(received);
     }
     if(dta>0){
         persist_write_data(dta, encoded, sizeof(encoded));
-    }
-    if((m==month && y == year) ){
-        processEncoded(encoded);
-        layer_mark_dirty(days_layer);
-    }else{
-        send_cmd();
+        time_t now = time(NULL);
+        
+        struct tm *currentTime = localtime(&now);
+        int year = currentTime->tm_year;
+        int month = currentTime->tm_mon+offset ;
+        
+        while(month>11){
+            month -= 12;
+            year++;
+        }
+        while(month<0){
+            month += 12;
+            year--;
+        }
+        if((m==month && y == year) ){
+            processEncoded(encoded);
+            layer_mark_dirty(days_layer);
+        }else{
+            send_cmd();
+        }
     }
 }
 
@@ -478,21 +549,19 @@ static void click_config_provider(void* context){
     
     window_single_click_subscribe(          BUTTON_ID_SELECT,  select_single_click_handler);
 // Up and Down should be repeating clicks, but due to bug in 2.0 firmware repeating clicks cause watch to crash
-//  window_single_repeating_click_subscribe(BUTTON_ID_UP  , 100,   up_single_click_handler);
-//  window_single_repeating_click_subscribe(BUTTON_ID_DOWN, 100, down_single_click_handler);
-    window_single_click_subscribe(BUTTON_ID_UP  ,   up_single_click_handler);
-    window_single_click_subscribe(BUTTON_ID_DOWN,   down_single_click_handler);
+  window_single_repeating_click_subscribe(BUTTON_ID_UP  , 100,   up_single_click_handler);
+  window_single_repeating_click_subscribe(BUTTON_ID_DOWN, 100, down_single_click_handler);
+//    window_single_click_subscribe(BUTTON_ID_UP  ,   up_single_click_handler);
+//    window_single_click_subscribe(BUTTON_ID_DOWN,   down_single_click_handler);
 
    
 }
 #endif
 
 static void handle_tick(struct tm *tick_time, TimeUnits units_changed) {
-#if SHOWTIME
-    if (units_changed & MINUTE_UNIT) {
+    if (showtime && units_changed & MINUTE_UNIT) {
         updateTime(tick_time);  
     }
-#endif
     if (units_changed & HOUR_UNIT) {
         send_cmd();
     }
@@ -502,6 +571,12 @@ static void handle_tick(struct tm *tick_time, TimeUnits units_changed) {
 }
 
 void init() {
+    
+    if( persist_exists(BLACK_KEY))          black =         persist_read_bool(BLACK_KEY);
+    if( persist_exists(GRID_KEY))           grid =          persist_read_bool(GRID_KEY);
+    if( persist_exists(INVERT_KEY))         invert =        persist_read_bool(INVERT_KEY);
+    if( persist_exists(SHOWTIME_KEY))       showtime =      persist_read_bool(SHOWTIME_KEY);
+    if( persist_exists(start_of_week_key))  start_of_week = persist_read_int(start_of_week_key);
     
     clearCalEvents();
     app_comm_set_sniff_interval(SNIFF_INTERVAL_REDUCED);
@@ -514,11 +589,13 @@ void init() {
 #if !WATCHMODE
     window_set_click_config_provider(window, (ClickConfigProvider) click_config_provider);
 #endif
-#if BLACK
+
+
+    
+    if(black)
         window_set_background_color(window, GColorBlack);
-#else
+    else
         window_set_background_color(window, GColorWhite);
-#endif    
 
     window_stack_push(window, false);
     
@@ -528,42 +605,34 @@ void init() {
     layer_set_update_proc(days_layer, days_layer_update_callback);
     layer_add_child(window_layer, days_layer);
 
-    
 
-#if SHOWTIME
     timeLayer = text_layer_create( GRect(0, -6, 144, 43));
-#if BLACK
-    text_layer_set_text_color(timeLayer, GColorWhite);
-#else
-    text_layer_set_text_color(timeLayer, GColorBlack);
-#endif
+    if(black)
+        text_layer_set_text_color(timeLayer, GColorWhite);
+    else
+        text_layer_set_text_color(timeLayer, GColorBlack);
+
     text_layer_set_background_color(timeLayer, GColorClear);
     text_layer_set_font(timeLayer, fonts_get_system_font(FONT_KEY_BITHAM_42_MEDIUM_NUMBERS));
     text_layer_set_text_alignment(timeLayer, GTextAlignmentCenter);
     layer_add_child(window_layer, text_layer_get_layer(timeLayer));
     
-    time_t now = time(NULL);
-    struct tm *currentTime = localtime(&now);
-    updateTime(currentTime);
-#endif
+    if(showtime){
+        time_t now = time(NULL);
+        struct tm *currentTime = localtime(&now);
+        updateTime(currentTime);
+    }
 
-
-
-#if SHOWTIME
     tick_timer_service_subscribe(MINUTE_UNIT, handle_tick);
-#else
-    tick_timer_service_subscribe(HOUR_UNIT, handle_tick);
-#endif
 
+    get_settings();
     app_timer_register(500,send_cmd,NULL);
 }
 
 static void deinit(void) {
 
     layer_destroy(days_layer);
-#if SHOWTIME
     text_layer_destroy(timeLayer);
-#endif
     tick_timer_service_unsubscribe();
     window_destroy(window);
 }
