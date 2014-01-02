@@ -17,6 +17,7 @@
 #define GRID_KEY 2
 #define INVERT_KEY 3
 #define SHOWTIME_KEY 4
+#define START_OF_WEEK_KEY 1
 
 
 static bool black = true;
@@ -27,7 +28,6 @@ static bool showtime = false;
 // First day of the week. Values can be between -6 and 6 
 // 0 = weeks start on Sunday
 // 1 =  weeks start on Monday
-static uint32_t start_of_week_key = 1;
 static int start_of_week = 0;
 
 
@@ -576,7 +576,7 @@ void init() {
     if( persist_exists(GRID_KEY))           grid =          persist_read_bool(GRID_KEY);
     if( persist_exists(INVERT_KEY))         invert =        persist_read_bool(INVERT_KEY);
     if( persist_exists(SHOWTIME_KEY))       showtime =      persist_read_bool(SHOWTIME_KEY);
-    if( persist_exists(start_of_week_key))  start_of_week = persist_read_int(start_of_week_key);
+    if( persist_exists(START_OF_WEEK_KEY))  start_of_week = persist_read_int(START_OF_WEEK_KEY);
     
     clearCalEvents();
     app_comm_set_sniff_interval(SNIFF_INTERVAL_REDUCED);
