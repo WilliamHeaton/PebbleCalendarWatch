@@ -1,7 +1,9 @@
 {
 
 
-  "uuid": "b41e3dcf-6162-4147-9c58-643e1091fb93",
+  "uuid": "B41E3DCF-6162-4147-9C58-643E1091FB93",
+  "uuidAPP": "B41E3DCF-6162-4147-9C58-643E1091FB93",
+  "uuidWATCH": "8C7718B5-8158-48D9-9D81-1E3AB232C95C",
   "shortName": "Calendar",
   "longName": "Calendar App",
   "companyName": "William Heaton",
