@@ -17,7 +17,7 @@
 #define GRID_KEY 2
 #define INVERT_KEY 3
 #define SHOWTIME_KEY 4
-#define START_OF_WEEK_KEY 1
+#define START_OF_WEEK_KEY 5
 
 
 static bool black = true;
@@ -402,12 +402,17 @@ void processSettings(uint8_t encoded[2]){
     showtime        = (encoded[0] & (1 << 3)) != 0;
     start_of_week   = (int) encoded[1];
 
+    if(persist_exists(BLACK_KEY        ))persist_delete(BLACK_KEY);
+    if(persist_exists(GRID_KEY         ))persist_delete(GRID_KEY);
+    if(persist_exists(INVERT_KEY       ))persist_delete(INVERT_KEY);
+    if(persist_exists(SHOWTIME_KEY     ))persist_delete(SHOWTIME_KEY);
+    if(persist_exists(START_OF_WEEK_KEY))persist_delete(START_OF_WEEK_KEY);
 
     persist_write_bool(BLACK_KEY, black);
     persist_write_bool(GRID_KEY, grid);
     persist_write_bool(INVERT_KEY, invert);
     persist_write_bool(SHOWTIME_KEY, showtime);
-    persist_write_int(BLACK_KEY, start_of_week);
+    persist_write_int(START_OF_WEEK_KEY, start_of_week);
     
     if(black)
         window_set_background_color(window, GColorBlack);
