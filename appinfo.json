@@ -7,8 +7,8 @@
   "shortName": "Calendar",
   "longName": "Calendar App",
   "companyName": "William Heaton",
-  "versionCode": 3,
-  "versionLabel": "2.0.1",
+  "versionCode": 4,
+  "versionLabel": "2.0.2",
   "watchapp": {
     "watchface": false
   },

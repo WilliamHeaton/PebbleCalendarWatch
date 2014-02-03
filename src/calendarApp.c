@@ -402,38 +402,36 @@ void processSettings(uint8_t encoded[2]){
     showtime        = (encoded[0] & (1 << 3)) != 0;
     start_of_week   = (int) encoded[1];
 
-    if(persist_exists(BLACK_KEY        ))persist_delete(BLACK_KEY);
-    if(persist_exists(GRID_KEY         ))persist_delete(GRID_KEY);
-    if(persist_exists(INVERT_KEY       ))persist_delete(INVERT_KEY);
-    if(persist_exists(SHOWTIME_KEY     ))persist_delete(SHOWTIME_KEY);
-    if(persist_exists(START_OF_WEEK_KEY))persist_delete(START_OF_WEEK_KEY);
+    int changed = false;
+    if( ( ! persist_exists(BLACK_KEY)         ) || persist_read_bool(BLACK_KEY)         != black        ){ persist_write_bool(BLACK_KEY,         black);         changed = true;}
+    if( ( ! persist_exists(GRID_KEY)          ) || persist_read_bool(GRID_KEY)          != grid         ){ persist_write_bool(GRID_KEY,          grid);          changed = true;}
+    if( ( ! persist_exists(INVERT_KEY)        ) || persist_read_bool(INVERT_KEY)        != invert       ){ persist_write_bool(INVERT_KEY,        invert);        changed = true;}
+    if( ( ! persist_exists(SHOWTIME_KEY)      ) || persist_read_bool(SHOWTIME_KEY)      != showtime     ){ persist_write_bool(SHOWTIME_KEY,      showtime);      changed = true;}
+    if( ( ! persist_exists(START_OF_WEEK_KEY) ) || persist_read_int (START_OF_WEEK_KEY) != start_of_week){ persist_write_bool(START_OF_WEEK_KEY, start_of_week); changed = true;}
 
-    persist_write_bool(BLACK_KEY, black);
-    persist_write_bool(GRID_KEY, grid);
-    persist_write_bool(INVERT_KEY, invert);
-    persist_write_bool(SHOWTIME_KEY, showtime);
-    persist_write_int(START_OF_WEEK_KEY, start_of_week);
-    
-    if(black)
-        window_set_background_color(window, GColorBlack);
-    else
-        window_set_background_color(window, GColorWhite);
-    
-    
-    if(showtime){
+    if(changed){
     
         if(black)
-            text_layer_set_text_color(timeLayer, GColorWhite);
+            window_set_background_color(window, GColorBlack);
         else
-            text_layer_set_text_color(timeLayer, GColorBlack);
-        time_t now = time(NULL);
-        struct tm *currentTime = localtime(&now);
-        updateTime(currentTime);
+            window_set_background_color(window, GColorWhite);
+        
+        
+        if(showtime){
+        
+            if(black)
+                text_layer_set_text_color(timeLayer, GColorWhite);
+            else
+                text_layer_set_text_color(timeLayer, GColorBlack);
+            time_t now = time(NULL);
+            struct tm *currentTime = localtime(&now);
+            updateTime(currentTime);
+        }
+        else{
+            text_layer_set_text(timeLayer, "");
+        }
+        layer_mark_dirty(days_layer);
     }
-    else{
-        text_layer_set_text(timeLayer, "");
-    }
-    layer_mark_dirty(days_layer);
 }
 void processEncoded(uint8_t encoded[42]){
     int index;
