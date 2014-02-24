@@ -12,25 +12,39 @@
 #define MONTHYEAR_KEY 1
 #define EVENT_DAYS_DATA_KEY 3
 #define SETTINGS_KEY 4
+#define EVENT_DETAILS_KEY 5
+#define EVENT_DETAILS_LINE1_KEY 6
+#define EVENT_DETAILS_LINE2_KEY 7
+#define EVENT_DETAILS_CLEAR_KEY 2
+
+
 //Storage Keys
 #define BLACK_KEY 1
 #define GRID_KEY 2
 #define INVERT_KEY 3
 #define SHOWTIME_KEY 4
 #define START_OF_WEEK_KEY 5
+#define SHOWWEEKNO_KEY 6
+#define HIDELASTPREV_KEY 7
+#define BOLDEVENTS_KEY 8
+#define WEEKSTOSHOW_KEY 9
 
 
 static bool black = true;
 static bool grid = true;
 static bool invert = true;
-static bool showtime = false;
+static bool showtime = true;
+static bool hidelastprev = true;
+static bool boldevents = true;
 
 // First day of the week. Values can be between -6 and 6 
 // 0 = weeks start on Sunday
 // 1 =  weeks start on Monday
 static int start_of_week = 0;
+static int showweekno = 0;
+static int weekstoshow = 0;
 
-
+static char weekno_form[4][3] = {"","%V","%U","%W"};
 const char daysOfWeek[7][3] = {"S","M","T","W","Th","F","S"};
 const char months[12][12] = {"January","Feburary","March","April","May","June","July","August","September","October", "November", "December"};
 
@@ -59,6 +73,45 @@ char* intToStr(int val){
 	
 	return &buf[i+1];
 }
+
+static int isleap (unsigned yr) {
+  return yr % 400 == 0 || (yr % 4 == 0 && yr % 100 != 0);
+}
+
+static unsigned months_to_days (unsigned month) {
+  return (month * 3057 - 3007) / 100;
+}
+
+static unsigned years_to_days (unsigned yr) {
+  return yr * 365L + yr / 4 - yr / 100 + yr / 400;
+}
+static long ymd_to_scalar (unsigned yr, unsigned mo, unsigned day) {
+  long scalar;
+
+  scalar = day + months_to_days(mo);
+  if (mo > 2) /* adjust if past February */
+    scalar -= isleap(yr) ? 1 : 2;
+  yr--;
+  scalar += years_to_days(yr);
+  return scalar;
+}
+time_t p_mktime (struct tm *timeptr) {
+  time_t tt;
+
+  if ((timeptr->tm_year < 70) || (timeptr->tm_year > 120)) {
+    tt = (time_t)-1;
+  } else {
+    tt = ymd_to_scalar(timeptr->tm_year + 1900,
+                       timeptr->tm_mon + 1,
+                       timeptr->tm_mday)
+      - ymd_to_scalar(1970, 1, 1);
+    tt = tt * 24 + timeptr->tm_hour;
+    tt = tt * 60 + timeptr->tm_min;
+    tt = tt * 60 + timeptr->tm_sec;
+  }
+  return tt;
+}
+
 // Calculate what day of the week it was/will be X days from the first day of the month, if mday was a wday
 int wdayOfFirstOffset(int wday,int mday,int ofs){
     int a = wday - ((mday-1)%7);
@@ -135,10 +188,9 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
     time_t now = time(NULL);
     struct tm *currentTime = localtime(&now);
 
-
     int mon = currentTime->tm_mon;
     int year = currentTime->tm_year+1900;
-    
+    int today = currentTime->tm_mday;
     // Figure out which month & year we are going to be looking at based on the selected offset
     // Calculate how many days are between the first of this month and the first of the month we are interested in
     int od = 0;
@@ -164,32 +216,47 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
     
     // Days in the target month
     int dom = daysInMonth(mon,year);
-    
     // Day of the week for the first day in the target month 
     int dow = wdayOfFirstOffset(currentTime->tm_wday,currentTime->tm_mday,od);
-    
+
+    // Days in Last Month
+    int dlm = daysInMonth(mon==1?12:mon-1,mon==1?year-1:year);
+
     // Adjust day of week by specified offset
     dow -= start_of_week;
     if(dow>6) dow-=7;
     if(dow<0) dow+=7;
+        
+    int idow = dow;
+    int curdow = currentTime->tm_wday - start_of_week;
+    if(curdow>6) curdow-=7;
+    if(curdow<0) curdow+=7;
     
-    // Cell geometry
-    
-    int l = 2;      // position of left side of left column
-    int b = 168;    // position of bottom of bottom row
-    int d = 7;      // number of columns (days of the week)
-    int lw = 20;    // width of columns 
-    int w = ceil(((float) dow + (float) dom)/7); // number of weeks this month
+    int l = showweekno>0?0:1;      // position of left side of left column
+    int b = 168;                 // position of bottom of bottom row
+    int d = showweekno>0?8:7;      // number of columns (days of the week)
+    int lw = showweekno>0?18:20;                 // width of columns 
+    int w = weekstoshow==0?ceil(((float) dow + (float) dom)/7):weekstoshow; // number of weeks this month
+    int o = showweekno>0?1:0;      // Offset if showing weeknumber;
     
 
+    int start = weekstoshow==0?1-idow: today - curdow - 7*floor(weekstoshow/3);
+    int end = start + w*7;
+    dow = 0;
+        
     int bh = 21;
     if(showtime){
-        if(w == 4)      bh = 21;
+        if(w == 1)      bh = 30;
+        else if(w == 2) bh = 30;
+        else if(w == 3) bh = 26;
+        else if(w == 4) bh = 21;
         else if(w == 5) bh = 17;
         else            bh = 14;
     }else{
-        // How tall rows should be depends on how many weeks there are
-        if(w == 4)      bh = 30;
+        if(w == 1)      bh = 30;
+        else if(w == 2) bh = 30;
+        else if(w == 3) bh = 30;
+        else if(w == 4) bh = 30;
         else if(w == 5) bh = 24;
         else            bh = 20;
     }
@@ -199,13 +266,12 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
     int cw = lw-1;  // width of textarea
     int cl = l+1;
     int ch = bh-1;
-        
 
     if(grid){
         // Draw the Gridlines
         // horizontal lines
         for(i=1;i<=w;i++){
-            graphics_draw_line(ctx, GPoint(l, b-i*bh), GPoint(r, b-i*bh));
+            graphics_draw_line(ctx, GPoint(0, b-i*bh), GPoint(144, b-i*bh));
         }
         // vertical lines
         for(i=1;i<d;i++){
@@ -224,7 +290,7 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
             ctx, 
             daysOfWeek[j], 
             fonts_get_system_font(FONT_KEY_GOTHIC_14), 
-            GRect(cl+i*lw, b-w*bh-16, cw, 15), 
+            GRect(cl+(i+o)*lw, b-w*bh-16, cw, 15), 
             GTextOverflowModeWordWrap, 
             GTextAlignmentCenter, 
             NULL); 
@@ -237,42 +303,114 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
     int fo;
     GFont font;
     int wknum = 0;
-    
-    for(i=1;i<=dom;i++){
+    time_t wknum_now = time(NULL);
+	struct tm *wknum_tm = localtime(&wknum_now);
+	time_t wknum_t;
+    char wknum_str[3];
+    for(i=start;i<=end;i++){
     
         // New Weeks begin on Sunday
         if(dow > 6){
             dow = 0;
             wknum ++;
         }
+        
+        // Normal (non-today) style
+        font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
+        fh = 15;
+        fo = 9;
+        
+        
+        // If this is the first day of the week (or month) draw week numbers
+        if(showweekno>0 && dow==0){
+            
+            wknum_tm->tm_year = year - 1900;
+            wknum_tm->tm_mon = mon;
+            wknum_tm->tm_mday = (mon==0 && i==1)?1:(((i==1)?i-dow:i)+((8-start_of_week>6)?(1-start_of_week):(8-start_of_week)) + ((showweekno==2)?1:0));
+            wknum_t = p_mktime(wknum_tm);
 
-        if(invert){
-            // Is this today?  If so prep special today style
-            if(i==currentTime->tm_mday && offset == 0){
-                setInvColors(ctx);
-                graphics_fill_rect(
-                    ctx,
-                    GRect(
-                        l+dow*lw+1, 
-                        b-(w-wknum)*bh+1, 
-                        cw, 
-                        ch)
-                    ,0
-                    ,GCornerNone);
-            }
+            strftime(wknum_str, sizeof(wknum_str), weekno_form[showweekno], localtime(&wknum_t));
+
+            graphics_draw_text(
+                ctx, 
+                wknum_str,  
+                font, 
+                GRect(
+                    cl, 
+                    b-(-0.5+w-wknum)*bh-fo, 
+                    cw, 
+                    fh), 
+                GTextOverflowModeWordWrap, 
+                GTextAlignmentCenter, 
+                NULL); 
+            
         }
 
-        if(calEvents[i-1]){
+        if(i<1){
+            if(hidelastprev){
+                dow++;
+                continue;
+            }
+            
+            // Draw the day
+            graphics_draw_text(
+                ctx, 
+                intToStr(dlm+i),  
+                font, 
+                GRect(
+                    cl+(dow+o)*lw, 
+                    b-(-0.5+w-wknum)*bh-fo, 
+                    cw, 
+                    fh), 
+                GTextOverflowModeWordWrap, 
+                GTextAlignmentCenter, 
+                NULL); 
+            dow++;
+            continue;
+        }
         
+        
+        if(i>dom){
+            if( hidelastprev ){
+                break;
+            }
+            // Draw the day
+            graphics_draw_text(
+                ctx, 
+                intToStr(i-dom),  
+                font, 
+                GRect(
+                    cl+(dow+o)*lw, 
+                    b-(-0.5+w-wknum)*bh-fo, 
+                    cw, 
+                    fh), 
+                GTextOverflowModeWordWrap, 
+                GTextAlignmentCenter, 
+                NULL); 
+            dow++;
+            continue;
+        
+        }
+        
+            // Is this today?  If so prep special today style
+        if(invert && i==today && offset == 0){
+            setInvColors(ctx);
+            graphics_fill_rect(
+                ctx,
+                GRect(
+                    l+(dow+o)*lw+1 + ((dow==0&&d==7)?-2:0), 
+                    b-(w-wknum)*bh+1, 
+                    cw + ((dow==0&&d==7)?2:0) + ((dow==6)?3:0), 
+                    ch)
+                ,0
+                ,GCornerNone);
+        }
+        if(boldevents && calEvents[i-1]){
+            // Today style
             font = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
             fh = 19;
             fo = 12;
         
-        // Normal (non-today) style
-        }else{
-            font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
-            fh = 15;
-            fo = 9;
         }
         
         // Draw the day
@@ -281,7 +419,7 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
             intToStr(i),  
             font, 
             GRect(
-                cl+dow*lw, 
+                cl+(dow+o)*lw, 
                 b-(-0.5+w-wknum)*bh-fo, 
                 cw, 
                 fh), 
@@ -290,8 +428,7 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
             NULL); 
         
         // Fix colors if inverted
-        if(invert)
-            if(offset == 0 && i==currentTime->tm_mday ) setColors(ctx);
+        if(invert && offset == 0 && i==today ) setColors(ctx);
 
         // and on to the next day
         dow++;   
@@ -340,26 +477,45 @@ void updateTime(struct tm * t){
     }
     text_layer_set_text(timeLayer, timeText);
     
-    
-//    static char dateText[30];
-//    strftime(dateText, sizeof(dateText), "%B %d", t);//"%A\n%B %d", t);
-//    text_layer_set_text(&dateLayer, dateText);
 }
 
 static void get_settings(){
     DictionaryIterator *iter;
-
+        
+    time_t now = time(NULL);
+    struct tm *currentTime = localtime(&now);
+        
+    int year = currentTime->tm_year;
+    int month = currentTime->tm_mon+offset ;
+    
+    while(month>11){
+        month -= 12;
+        year++;
+    }
+    while(month<0){
+        month += 12;
+        year--;
+    }
+    
     if (app_message_outbox_begin(&iter) != APP_MSG_OK) {
-       // app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"App MSG Not ok");
+        app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"App MSG Not ok");
         return;
     }    
     if (dict_write_uint8(iter, GET_SETTINGS, ((uint16_t)0)) != DICT_OK) {
-     //   app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"Dict Not ok");
+        app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"Dict Not ok");
         return;
     }
-    if (app_message_outbox_send() != APP_MSG_OK){
-      //  app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"Message Not Sent");
+    if(year*100+month>0){
+        if (dict_write_uint16(iter, GET_EVENT_DAYS, ((uint16_t)year*100+month)) != DICT_OK) {
+            app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"Dict Not ok");
+            return;
+        }
     }
+    if (app_message_outbox_send() != APP_MSG_OK){
+        app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"Message Not Sent");
+        return;
+    }
+    app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"Message Sent");
 }
 static void send_cmd(){
         
@@ -381,16 +537,18 @@ static void send_cmd(){
         DictionaryIterator *iter;
 
         if (app_message_outbox_begin(&iter) != APP_MSG_OK) {
-           // app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"App MSG Not ok");
+            app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"App MSG Not ok");
             return;
         }    
         if (dict_write_uint16(iter, GET_EVENT_DAYS, ((uint16_t)year*100+month)) != DICT_OK) {
-         //   app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"Dict Not ok");
+            app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"Dict Not ok");
             return;
         }
         if (app_message_outbox_send() != APP_MSG_OK){
-          //  app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"Message Not Sent");
+            app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"Message Not Sent");
+            return;
         }
+        app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"Message Sent");
     }
 }
 
@@ -400,14 +558,25 @@ void processSettings(uint8_t encoded[2]){
     grid            = (encoded[0] & (1 << 1)) != 0;
     invert          = (encoded[0] & (1 << 2)) != 0;
     showtime        = (encoded[0] & (1 << 3)) != 0;
+    hidelastprev    = (encoded[0] & (1 << 4)) != 0;
+    boldevents      = (encoded[0] & (1 << 5)) != 0;
+
     start_of_week   = (int) encoded[1];
+    showweekno      = (int) encoded[2];
+    weekstoshow      = (int) encoded[3];
 
     int changed = false;
     if( ( ! persist_exists(BLACK_KEY)         ) || persist_read_bool(BLACK_KEY)         != black        ){ persist_write_bool(BLACK_KEY,         black);         changed = true;}
     if( ( ! persist_exists(GRID_KEY)          ) || persist_read_bool(GRID_KEY)          != grid         ){ persist_write_bool(GRID_KEY,          grid);          changed = true;}
     if( ( ! persist_exists(INVERT_KEY)        ) || persist_read_bool(INVERT_KEY)        != invert       ){ persist_write_bool(INVERT_KEY,        invert);        changed = true;}
     if( ( ! persist_exists(SHOWTIME_KEY)      ) || persist_read_bool(SHOWTIME_KEY)      != showtime     ){ persist_write_bool(SHOWTIME_KEY,      showtime);      changed = true;}
-    if( ( ! persist_exists(START_OF_WEEK_KEY) ) || persist_read_int (START_OF_WEEK_KEY) != start_of_week){ persist_write_bool(START_OF_WEEK_KEY, start_of_week); changed = true;}
+    if( ( ! persist_exists(HIDELASTPREV_KEY)  ) || persist_read_bool(HIDELASTPREV_KEY)  != hidelastprev ){ persist_write_bool(HIDELASTPREV_KEY,  hidelastprev);  changed = true;}
+    if( ( ! persist_exists(BOLDEVENTS_KEY)    ) || persist_read_bool(BOLDEVENTS_KEY)    != boldevents   ){ persist_write_bool(BOLDEVENTS_KEY,    boldevents);    changed = true;}
+    if( ( ! persist_exists(START_OF_WEEK_KEY) ) || persist_read_int (START_OF_WEEK_KEY) != start_of_week){ persist_write_int(START_OF_WEEK_KEY,  start_of_week); changed = true;}
+    if( ( ! persist_exists(SHOWWEEKNO_KEY)    ) || persist_read_int (SHOWWEEKNO_KEY)    != showweekno   ){ persist_write_int(SHOWWEEKNO_KEY,     showweekno);    changed = true;}
+    if( ( ! persist_exists(WEEKSTOSHOW_KEY)   ) || persist_read_int (WEEKSTOSHOW_KEY)   != weekstoshow  ){ persist_write_int(WEEKSTOSHOW_KEY,    weekstoshow);   changed = true;}
+
+
 
     if(changed){
     
@@ -481,54 +650,68 @@ static void monthChanged(){
 }
 #endif
 
-void my_in_rcv_handler(DictionaryIterator *received, void *context) {
-    // incoming message received
+void processEventDays(uint16_t dta,uint8_t *encoded){
+    int m = dta%100;
+    int y = (dta-m)/100;
     
-    uint16_t dta = 0;
-    int y = 0;
-    int m = 0;
-    uint8_t *encoded = 0;
+    persist_write_data(dta, encoded, sizeof(encoded));
+    time_t now = time(NULL);
     
-    Tuple *tuple = dict_read_first(received);
-    while (tuple) {
-        switch (tuple->key) {
-            case MONTHYEAR_KEY:
-                dta = tuple->value->uint16;
-                m = dta%100;
-                y = (dta-m)/100;
-                
-                break;
-            case EVENT_DAYS_DATA_KEY:
-                encoded = tuple->value->data;
-                break;
-            case SETTINGS_KEY:
-                processSettings(tuple->value->data);
-                break;
-        }
-        tuple = dict_read_next(received);
+    struct tm *currentTime = localtime(&now);
+    int year = currentTime->tm_year;
+    int month = currentTime->tm_mon+offset ;
+    
+    while(month>11){
+        month -= 12;
+        year++;
     }
-    if(dta>0){
-        persist_write_data(dta, encoded, sizeof(encoded));
-        time_t now = time(NULL);
-        
-        struct tm *currentTime = localtime(&now);
-        int year = currentTime->tm_year;
-        int month = currentTime->tm_mon+offset ;
-        
-        while(month>11){
-            month -= 12;
-            year++;
-        }
-        while(month<0){
-            month += 12;
-            year--;
-        }
-        if((m==month && y == year) ){
-            processEncoded(encoded);
-            layer_mark_dirty(days_layer);
-        }else{
-            send_cmd();
-        }
+    while(month<0){
+        month += 12;
+        year--;
+    }
+    if((m==month && y == year) ){
+        processEncoded(encoded);
+        layer_mark_dirty(days_layer);
+    }else{
+        send_cmd();
+    }
+}
+void clearEventDetails(){
+    for(int i=100;i<200;i++){
+        if( persist_exists(i) )
+            persist_delete(i);
+    }
+}
+
+void my_in_rcv_handler(DictionaryIterator *received, void *context) {
+    
+    app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"Message Recieved");
+    
+    Tuple *settings_tuple = dict_find(received, SETTINGS_KEY);
+    
+    Tuple *event_days_tuple = dict_find(received, EVENT_DAYS_DATA_KEY);
+    Tuple *monthyear_tuple = dict_find(received, MONTHYEAR_KEY);
+    
+    Tuple *event_details_tuple = dict_find(received, EVENT_DETAILS_KEY);
+    Tuple *event_details_line1_tuple = dict_find(received, EVENT_DETAILS_LINE1_KEY);
+    Tuple *event_details_line2_tuple = dict_find(received, EVENT_DETAILS_LINE2_KEY);
+    Tuple *event_details_clear_tuple = dict_find(received, EVENT_DETAILS_CLEAR_KEY);
+    
+    
+    if (settings_tuple) {
+        processSettings(settings_tuple->value->data);
+    }
+    if (event_details_clear_tuple) {
+        clearEventDetails();
+    }
+    if (event_days_tuple) {
+        processEventDays(monthyear_tuple->value->uint16,event_days_tuple->value->data);
+    }
+    if (event_details_line1_tuple) {
+        persist_write_string(100+(event_details_tuple->value->uint16), event_details_line1_tuple->value->cstring);
+    }
+    if (event_details_line2_tuple) {
+        persist_write_string(200+(event_details_tuple->value->uint16), event_details_line2_tuple->value->cstring);
     }
 }
 
@@ -579,7 +762,12 @@ void init() {
     if( persist_exists(GRID_KEY))           grid =          persist_read_bool(GRID_KEY);
     if( persist_exists(INVERT_KEY))         invert =        persist_read_bool(INVERT_KEY);
     if( persist_exists(SHOWTIME_KEY))       showtime =      persist_read_bool(SHOWTIME_KEY);
+    if( persist_exists(HIDELASTPREV_KEY))   hidelastprev =  persist_read_bool(HIDELASTPREV_KEY);
+    if( persist_exists(BOLDEVENTS_KEY))     boldevents =    persist_read_bool(BOLDEVENTS_KEY);
     if( persist_exists(START_OF_WEEK_KEY))  start_of_week = persist_read_int(START_OF_WEEK_KEY);
+    if( persist_exists(SHOWWEEKNO_KEY))     showweekno =    persist_read_int(SHOWWEEKNO_KEY);
+    if( persist_exists(WEEKSTOSHOW_KEY))    weekstoshow =   persist_read_int(WEEKSTOSHOW_KEY);
+    
     
     clearCalEvents();
     app_comm_set_sniff_interval(SNIFF_INTERVAL_REDUCED);
@@ -629,7 +817,6 @@ void init() {
     tick_timer_service_subscribe(MINUTE_UNIT, handle_tick);
 
     get_settings();
-    app_timer_register(500,send_cmd,NULL);
 }
 
 static void deinit(void) {
