@@ -65,15 +65,6 @@ bool calEvents[32] = {  false,false,false,false,false,
                         false,false,false,false,false,
                         false,false,false,false,false,false,false};
 
-char* intToStr(int val){
- 	static char buf[32] = {0};
-	int i = 30;	
-	for(; val && i ; --i, val /= 10)
-		buf[i] = "0123456789"[val % 10];
-	
-	return &buf[i+1];
-}
-
 static int isleap (unsigned yr) {
   return yr % 400 == 0 || (yr % 4 == 0 && yr % 100 != 0);
 }
@@ -113,20 +104,11 @@ time_t p_mktime (struct tm *timeptr) {
 }
 
 // Calculate what day of the week it was/will be X days from the first day of the month, if mday was a wday
-int wdayOfFirstOffset(int wday,int mday,int ofs){
+int wdayOfFirst(int wday,int mday){
     int a = wday - ((mday-1)%7);
     if(a<0) a += 7;
-
-    int b;
-    if(ofs>0)
-        b = a + (abs(ofs)%7); 
-    else
-        b = a - (abs(ofs)%7); 
     
-    if(b<0) b += 7;
-    if(b>6) b -= 7;
-    
-    return b;
+    return a;
 }
 
 // How many days are/were in the month
@@ -181,70 +163,69 @@ void setInvColors(GContext* ctx){
 
 void days_layer_update_callback(Layer *me, GContext* ctx) {
     
-    int j;
-    int i;
-    setColors(ctx);
-    
+    // Find the Target Month
     time_t now = time(NULL);
     struct tm *currentTime = localtime(&now);
+    currentTime->tm_mon=currentTime->tm_mon+offset;
+    now = p_mktime(currentTime);
+    currentTime = localtime(&now);
+    
+    // Extract the info we need to know about the month to build a calendar
+    int year = currentTime->tm_year+1900;                         // Year
+    int mon = currentTime->tm_mon;                                // Month
+    int today = currentTime->tm_mday;                             // Day of Month (only relevent if this we are looking at the current month)
+    int dom = daysInMonth(mon,year);                              // Days in the target month
+    int dlm = daysInMonth(mon==1?12:mon-1,mon==1?year-1:year);    // Days in Last Month
 
-    int mon = currentTime->tm_mon;
-    int year = currentTime->tm_year+1900;
-    int today = currentTime->tm_mday;
-    // Figure out which month & year we are going to be looking at based on the selected offset
-    // Calculate how many days are between the first of this month and the first of the month we are interested in
-    int od = 0;
-    j = 0;
-    while(j < abs(offset)){
-        j++;
-        if(offset > 0){
-            od = od + daysInMonth(mon,year);
-            mon++;
-            if(mon>11){
-                mon -= 12;
-                year++;
-            }
-        }else{
-            mon--;
-            if(mon < 0){
-                mon += 12;
-                year--;
-            }
-            od -= daysInMonth(mon,year);
-        }
+    
+    
+    // Find the number of weeks that we will be showing,
+    // and the day of month that we will start on
+        
+    // We will always start on the first day of the week
+    // if this is has us starting in the previous month,
+    // we will just hide those days if, we do not want to show them
+    
+    int w,start;
+    if(weekstoshow==0){
+        // Day of the week for the first day in the target month
+        int idow = wdayOfFirst(currentTime->tm_wday,currentTime->tm_mday) - start_of_week; if(idow<0) idow+=7;
+        
+        // Number of weeks that we will be showing
+        w = ceil(((float) (idow + dom))/7);
+        
+        // Day of month that we will start on
+        // It should always be the beginning of the week
+        start = 1-idow;
+    
+    }else{
+        // Day of the week for the first day in the target month
+        int idow = currentTime->tm_wday - start_of_week;if(idow<0) idow+=7;
+        
+        // Number of weeks that we will be showing
+        w = weekstoshow;
+        
+        // Day of month that we will start on
+        // It should always be the beginning of the week
+        start = today - idow - 7*floor(weekstoshow/3);
     }
     
-    // Days in the target month
-    int dom = daysInMonth(mon,year);
-    // Day of the week for the first day in the target month 
-    int dow = wdayOfFirstOffset(currentTime->tm_wday,currentTime->tm_mday,od);
-
-    // Days in Last Month
-    int dlm = daysInMonth(mon==1?12:mon-1,mon==1?year-1:year);
-
-    // Adjust day of week by specified offset
-    dow -= start_of_week;
-    if(dow>6) dow-=7;
-    if(dow<0) dow+=7;
-        
-    int idow = dow;
-    int curdow = currentTime->tm_wday - start_of_week;
-    if(curdow>6) curdow-=7;
-    if(curdow<0) curdow+=7;
+    // Find the last day that will show on the calendar
+    int end = start + w*7;
     
+
+
+
+    // Size & position of Day squares
+    // First the constants that setup the screen size
     int l = showweekno>0?0:1;      // position of left side of left column
-    int b = 168;                 // position of bottom of bottom row
+    int b = 168;                   // position of bottom of bottom row
     int d = showweekno>0?8:7;      // number of columns (days of the week)
-    int lw = showweekno>0?18:20;                 // width of columns 
-    int w = weekstoshow==0?ceil(((float) dow + (float) dom)/7):weekstoshow; // number of weeks this month
+    int lw = showweekno>0?18:20;   // width of columns 
     int o = showweekno>0?1:0;      // Offset if showing weeknumber;
     
-
-    int start = weekstoshow==0?1-idow: today - curdow - 7*floor(weekstoshow/3);
-    int end = start + w*7;
-    dow = 0;
-        
-    int bh = 21;
+    // Then the Calculated values
+    int bh = 21;                   // height of rows
     if(showtime){
         if(w == 1)      bh = 30;
         else if(w == 2) bh = 30;
@@ -266,9 +247,26 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
     int cw = lw-1;  // width of textarea
     int cl = l+1;
     int ch = bh-1;
+    
+    
+    // Setup font and background colors
+    GFont font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
+    int fh = 15;
+    int fo = 9;
+    setColors(ctx);
+    
+    
+    // these are itterators/buffers
+    int j,i,day;
+    int dow = 0;
+    int wknum = 0;
+    char buff[8];
 
+
+    // Now it is time to start drawing
+    
+    // Draw the Gridlines
     if(grid){
-        // Draw the Gridlines
         // horizontal lines
         for(i=1;i<=w;i++){
             graphics_draw_line(ctx, GPoint(0, b-i*bh), GPoint(144, b-i*bh));
@@ -295,45 +293,32 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
             GTextAlignmentCenter, 
             NULL); 
     }
-    
-    
-    
+        
     // Fill in the cells with the month days
-    int fh;
-    int fo;
-    GFont font;
-    int wknum = 0;
-    time_t wknum_now = time(NULL);
-	struct tm *wknum_tm = localtime(&wknum_now);
-	time_t wknum_t;
-    char wknum_str[3];
     for(i=start;i<=end;i++){
     
         // New Weeks begin on Sunday
         if(dow > 6){
             dow = 0;
             wknum ++;
-        }
+        }        
         
-        // Normal (non-today) style
-        font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
-        fh = 15;
-        fo = 9;
-        
-        
-        // If this is the first day of the week (or month) draw week numbers
+        // If this is the first day of the week draw week numbers
         if(showweekno>0 && dow==0){
-            
-            wknum_tm->tm_year = year - 1900;
-            wknum_tm->tm_mon = mon;
-            wknum_tm->tm_mday = (mon==0 && i==1)?1:(((i==1)?i-dow:i)+((8-start_of_week>6)?(1-start_of_week):(8-start_of_week)) + ((showweekno==2)?1:0));
-            wknum_t = p_mktime(wknum_tm);
+                        
+            // Find the day that we will base the weeknumber on
+            // If this is the week of Jan 1, use Jan 1
+            // Otherwise, find the monday in this row
+            currentTime->tm_year = year - 1900;
+            currentTime->tm_mon = mon;
+            currentTime->tm_mday = (mon==0 && i<1  && i < start_of_week )?1:(i - start_of_week + ((start_of_week>2)?8:1));
 
-            strftime(wknum_str, sizeof(wknum_str), weekno_form[showweekno], localtime(&wknum_t));
+            now = p_mktime(currentTime);
+            strftime(buff, sizeof(buff), weekno_form[showweekno], localtime(&now));
 
             graphics_draw_text(
                 ctx, 
-                wknum_str,  
+                buff,  
                 font, 
                 GRect(
                     cl, 
@@ -343,56 +328,10 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
                 GTextOverflowModeWordWrap, 
                 GTextAlignmentCenter, 
                 NULL); 
-            
         }
 
-        if(i<1){
-            if(hidelastprev){
-                dow++;
-                continue;
-            }
-            
-            // Draw the day
-            graphics_draw_text(
-                ctx, 
-                intToStr(dlm+i),  
-                font, 
-                GRect(
-                    cl+(dow+o)*lw, 
-                    b-(-0.5+w-wknum)*bh-fo, 
-                    cw, 
-                    fh), 
-                GTextOverflowModeWordWrap, 
-                GTextAlignmentCenter, 
-                NULL); 
-            dow++;
-            continue;
-        }
-        
-        
-        if(i>dom){
-            if( hidelastprev ){
-                break;
-            }
-            // Draw the day
-            graphics_draw_text(
-                ctx, 
-                intToStr(i-dom),  
-                font, 
-                GRect(
-                    cl+(dow+o)*lw, 
-                    b-(-0.5+w-wknum)*bh-fo, 
-                    cw, 
-                    fh), 
-                GTextOverflowModeWordWrap, 
-                GTextAlignmentCenter, 
-                NULL); 
-            dow++;
-            continue;
-        
-        }
-        
-            // Is this today?  If so prep special today style
+
+        // Is this today?  If so prep special today style
         if(invert && i==today && offset == 0){
             setInvColors(ctx);
             graphics_fill_rect(
@@ -405,18 +344,46 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
                 ,0
                 ,GCornerNone);
         }
-        if(boldevents && calEvents[i-1]){
-            // Today style
+    
+        // Is there an event today? If so prep special event style
+        if(boldevents && i>0 && i<=dom && calEvents[i-1]){
             font = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
             fh = 19;
-            fo = 12;
-        
+            fo = 12;        
         }
         
+        // Get the number that we will show
+                
+        // Days from last month
+        if(i<1){
+            if(hidelastprev){
+                dow++;
+                continue;
+            }else{
+                day = dlm+i;
+            
+            }
+            
+        // Days from next month
+        }else if(i>dom){
+            if(hidelastprev){
+                dow++;
+                continue;
+            }else{
+                day = i-dom;
+            }
+            
+        // Days from this month
+        }else{
+            day = i;
+        
+        }
+        snprintf(buff,sizeof(buff),"%d", day);
+
         // Draw the day
         graphics_draw_text(
             ctx, 
-            intToStr(i),  
+            buff,  
             font, 
             GRect(
                 cl+(dow+o)*lw, 
@@ -427,23 +394,29 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
             GTextAlignmentCenter, 
             NULL); 
         
-        // Fix colors if inverted
-        if(invert && offset == 0 && i==today ) setColors(ctx);
+
+        // Reset Styles
+        setColors(ctx);
+        font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
+        fh = 15;
+        fo = 9;
 
         // and on to the next day
         dow++;   
     }
     
     
-#if WATCHMODE
-    char str[20] = ""; 
-    strftime(str, sizeof(str), "%B %d, %Y", currentTime);
-#else
     // Build the MONTH YEAR string
     char str[20];
-    strcpy (str,months[mon]);
-    strcat (str," ");
-    strcat (str,intToStr(year));
+#if WATCHMODE
+    strftime(str, sizeof(str), "%B %d, %Y", currentTime);
+#else
+
+    currentTime->tm_year = year - 1900;
+    currentTime->tm_mon = mon;
+    currentTime->tm_mday = 1;
+    strftime(str, sizeof(str), "%B %Y",currentTime );
+
 #endif
 
     GRect rec = GRect(0, 0, 144, 25);
