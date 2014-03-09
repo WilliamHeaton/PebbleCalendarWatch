@@ -4,13 +4,13 @@
   "uuid": "B41E3DCF-6162-4147-9C58-643E1091FB93",
   "uuidAPP": "B41E3DCF-6162-4147-9C58-643E1091FB93",
   "uuidWATCH": "8C7718B5-8158-48D9-9D81-1E3AB232C95C",
-  "shortName": "Calendar",
+  "shortName": "Calendar App",
   "longName": "Calendar App",
   "companyName": "William Heaton",
-  "versionCode": 4,
-  "versionLabel": "2.0.2",
+  "versionCode": 6,
+  "versionLabel": "2.5",
   "watchapp": {
-    "watchface": false
+    "watchface": true
   },
   "appKeys": {},
   "resources": {

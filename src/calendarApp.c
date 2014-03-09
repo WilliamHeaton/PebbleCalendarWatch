@@ -409,14 +409,15 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
     // Build the MONTH YEAR string
     char str[20];
 #if WATCHMODE
+    currentTime->tm_year = year - 1900;
+    currentTime->tm_mon = mon;
+    currentTime->tm_mday = today;
     strftime(str, sizeof(str), "%B %d, %Y", currentTime);
 #else
-
     currentTime->tm_year = year - 1900;
     currentTime->tm_mon = mon;
     currentTime->tm_mday = 1;
     strftime(str, sizeof(str), "%B %Y",currentTime );
-
 #endif
 
     GRect rec = GRect(0, 0, 144, 25);
