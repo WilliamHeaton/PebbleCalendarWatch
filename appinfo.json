@@ -10,7 +10,7 @@
   "versionCode": 6,
   "versionLabel": "2.5",
   "watchapp": {
-    "watchface": true
+    "watchface": false
   },
   "appKeys": {},
   "resources": {
