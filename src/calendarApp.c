@@ -1,5 +1,4 @@
 #include <pebble.h>
-#include <math.h>
 #include <settings.h>
 #include <calendarUtils.h>
 #include <calendarWindow.h>
