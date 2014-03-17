@@ -1,25 +1,92 @@
 #include <pebble.h>
 #include <settings.h>
-#include <calendarUtils.h>
 #include <calendarWindow.h>
+#include <agendaWindow.h>
 
 #define WATCHMODE false
 
-void clearEventDetails(){
-    for(int i=100;i<200;i++){
-        if( persist_exists(i) )
-            persist_delete(i);
+
+
+static void handle_tick(struct tm *tick_time, TimeUnits units_changed) {
+    if (showtime && units_changed & MINUTE_UNIT) {
+        updateTime(tick_time);  
+    }
+    if (units_changed & HOUR_UNIT) {
+        get_event_days();
+    }
+    if (units_changed & DAY_UNIT) {
+        layer_mark_dirty(days_layer);
+    }
+}
+
+
+void my_in_rcv_handler(DictionaryIterator *received, void *context) {
+    
+//    app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"Message Recieved");
+    
+    Tuple *settings_tuple = dict_find(received, SETTINGS_KEY);
+    
+    Tuple *event_days_tuple = dict_find(received, EVENT_DAYS_DATA_KEY);
+    Tuple *monthyear_tuple = dict_find(received, MONTHYEAR_KEY);
+    
+    Tuple *event_details_tuple = dict_find(received, EVENT_DETAILS_KEY);
+    Tuple *event_details_line1_tuple = dict_find(received, EVENT_DETAILS_LINE1_KEY);
+    Tuple *event_details_line2_tuple = dict_find(received, EVENT_DETAILS_LINE2_KEY);
+    Tuple *event_details_datel_tuple = dict_find(received, EVENT_DETAILS_DATEL_KEY);
+    Tuple *event_details_length_tuple = dict_find(received, EVENT_DETAILS_LENGTH_KEY);
+    
+    if(settings_tuple) {
+        processSettings(settings_tuple->value->data);
+    }
+    if(event_details_length_tuple && event_details_length_tuple->value->uint16 <= MAX_AGENDA_LENGTH) {
+        agendaLength = (int)event_details_length_tuple->value->uint16;
+        persist_write_int(AGENDA_KEY,agendaLength);
+    }
+    if(event_days_tuple) {
+        processEventDays(monthyear_tuple->value->uint16,event_days_tuple->value->data);
+    }
+    if(event_details_datel_tuple && MAX_AGENDA_LENGTH >= event_details_tuple->value->uint16) {
+        
+        if(agendaLength < ((int)event_details_tuple->value->uint16)){
+            agendaLength = (int)event_details_tuple->value->uint16;
+            persist_write_int(AGENDA_KEY,agendaLength);
+        }
+        
+        strcpy(agenda[(int)event_details_tuple->value->uint16-1][0],event_details_datel_tuple->value->cstring);
+        strcpy(agenda[(int)event_details_tuple->value->uint16-1][1],event_details_line1_tuple->value->cstring);
+        strcpy(agenda[(int)event_details_tuple->value->uint16-1][2],event_details_line2_tuple->value->cstring);
+            
+        persist_write_data(AGENDA_KEY+((int)event_details_tuple->value->uint16),agenda[(int)event_details_tuple->value->uint16-1],sizeof(agenda[(int)event_details_tuple->value->uint16-1]));
+        if(menu_layer!=NULL)
+            menu_layer_reload_data(menu_layer);
     }
 }
 
 int main(void) {
+    
+    
+    app_comm_set_sniff_interval(SNIFF_INTERVAL_REDUCED);
+    app_message_open(app_message_inbox_size_maximum(), app_message_outbox_size_maximum());
+    app_message_register_inbox_received(my_in_rcv_handler);
+    
+    tick_timer_service_subscribe(MINUTE_UNIT, handle_tick);
+    
     calendar_window = window_create();
     window_set_fullscreen(calendar_window, true);
     window_set_window_handlers(calendar_window, (WindowHandlers) {
         .load = calendar_window_load,
         .unload = calendar_window_unload,
     });
+    
+    agenda_window = window_create();
+    window_set_fullscreen(agenda_window, true);
+    window_set_window_handlers(agenda_window, (WindowHandlers) {
+        .load = agenda_window_load,
+        .unload = agenda_window_unload,
+    });
+    
     window_stack_push(calendar_window, true);
     app_event_loop();
+    window_destroy(agenda_window);
     window_destroy(calendar_window);
 }

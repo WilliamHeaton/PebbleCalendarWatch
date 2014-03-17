@@ -3,31 +3,6 @@
 #include <calendarUtils.h>
 #include <calendarWindow.h>
 
-//Send Keys
-#define GET_EVENT_DAYS 1
-#define GET_SETTINGS 2
-//Recieve Keys
-#define MONTHYEAR_KEY 1
-#define EVENT_DAYS_DATA_KEY 3
-#define SETTINGS_KEY 4
-#define EVENT_DETAILS_KEY 5
-#define EVENT_DETAILS_LINE1_KEY 6
-#define EVENT_DETAILS_LINE2_KEY 7
-#define EVENT_DETAILS_CLEAR_KEY 2
-
-
-//Storage Keys
-#define BLACK_KEY 1
-#define GRID_KEY 2
-#define INVERT_KEY 3
-#define SHOWTIME_KEY 4
-#define START_OF_WEEK_KEY 5
-#define SHOWWEEKNO_KEY 6
-#define HIDELASTPREV_KEY 7
-#define BOLDEVENTS_KEY 8
-#define WEEKSTOSHOW_KEY 9
-
-
 bool black = true;
 bool grid = true;
 bool invert = true;
@@ -60,7 +35,25 @@ bool calEvents[32] = {  false,false,false,false,false,
                         false,false,false,false,false,
                         false,false,false,false,false,false,false};
 
+int agendaLength = 0;
+char agenda[MAX_AGENDA_LENGTH][3][30];
 
+void readSettings(){
+    if( persist_exists(BLACK_KEY))          black =         persist_read_bool(BLACK_KEY);
+    if( persist_exists(GRID_KEY))           grid =          persist_read_bool(GRID_KEY);
+    if( persist_exists(INVERT_KEY))         invert =        persist_read_bool(INVERT_KEY);
+    if( persist_exists(SHOWTIME_KEY))       showtime =      persist_read_bool(SHOWTIME_KEY);
+    if( persist_exists(HIDELASTPREV_KEY))   hidelastprev =  persist_read_bool(HIDELASTPREV_KEY);
+    if( persist_exists(BOLDEVENTS_KEY))     boldevents =    persist_read_bool(BOLDEVENTS_KEY);
+    if( persist_exists(START_OF_WEEK_KEY))  start_of_week = persist_read_int(START_OF_WEEK_KEY);
+    if( persist_exists(SHOWWEEKNO_KEY))     showweekno =    persist_read_int(SHOWWEEKNO_KEY);
+    if( persist_exists(WEEKSTOSHOW_KEY))    weekstoshow =   persist_read_int(WEEKSTOSHOW_KEY);
+    if( persist_exists(AGENDA_KEY))         agendaLength =  persist_read_int(AGENDA_KEY);
+    for(int i = 0; i<MAX_AGENDA_LENGTH;i++ ){
+        if( persist_exists(AGENDA_KEY+i+1))
+            persist_read_data(AGENDA_KEY+i+1,agenda[i],sizeof(agenda[i]));
+    }
+}
 
 void get_settings(){
     DictionaryIterator *iter;
@@ -84,7 +77,7 @@ void get_settings(){
         app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"App MSG Not ok");
         return;
     }    
-    if (dict_write_uint8(iter, GET_SETTINGS, ((uint16_t)0)) != DICT_OK) {
+    if (dict_write_uint8(iter, GET_SETTINGS, ((uint8_t)0)) != DICT_OK) {
         app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"Dict Not ok");
         return;
     }

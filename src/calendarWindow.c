@@ -3,6 +3,7 @@
 #include <settings.h>
 #include <calendarUtils.h>
 #include <calendarWindow.h>
+#include <agendaWindow.h>
 
 Window *calendar_window;
 Layer *days_layer;
@@ -434,38 +435,6 @@ void processEventDays(uint16_t dta,uint8_t *encoded){
     }
 }
 
-void my_in_rcv_handler(DictionaryIterator *received, void *context) {
-    
-    app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"Message Recieved");
-    
-    Tuple *settings_tuple = dict_find(received, SETTINGS_KEY);
-    
-    Tuple *event_days_tuple = dict_find(received, EVENT_DAYS_DATA_KEY);
-    Tuple *monthyear_tuple = dict_find(received, MONTHYEAR_KEY);
-    
-    Tuple *event_details_tuple = dict_find(received, EVENT_DETAILS_KEY);
-    Tuple *event_details_line1_tuple = dict_find(received, EVENT_DETAILS_LINE1_KEY);
-    Tuple *event_details_line2_tuple = dict_find(received, EVENT_DETAILS_LINE2_KEY);
-    Tuple *event_details_clear_tuple = dict_find(received, EVENT_DETAILS_CLEAR_KEY);
-    
-    
-    if (settings_tuple) {
-        processSettings(settings_tuple->value->data);
-    }
-    if (event_details_clear_tuple) {
-//        clearEventDetails();
-    }
-    if (event_days_tuple) {
-        processEventDays(monthyear_tuple->value->uint16,event_days_tuple->value->data);
-    }
-    if (event_details_line1_tuple) {
-        persist_write_string(100+(event_details_tuple->value->uint16), event_details_line1_tuple->value->cstring);
-    }
-    if (event_details_line2_tuple) {
-        persist_write_string(200+(event_details_tuple->value->uint16), event_details_line2_tuple->value->cstring);
-    }
-}
-
 
 #if !WATCHMODE
 void up_single_click_handler(ClickRecognizerRef recognizer, void *context) {
@@ -480,6 +449,8 @@ void select_single_click_handler(ClickRecognizerRef recognizer, void *context) {
     if(offset != 0){
         offset = 0;
         monthChanged();
+    }else{
+        launchAgenda();
     }
 }
 static void click_config_provider(void* context){
@@ -495,18 +466,6 @@ static void click_config_provider(void* context){
 }
 #endif
 
-static void handle_tick(struct tm *tick_time, TimeUnits units_changed) {
-    if (showtime && units_changed & MINUTE_UNIT) {
-        updateTime(tick_time);  
-    }
-    if (units_changed & HOUR_UNIT) {
-        get_event_days();
-    }
-    if (units_changed & DAY_UNIT) {
-        layer_mark_dirty(days_layer);
-    }
-}
-
 void calendar_window_unload(Window *window) {
     layer_destroy(days_layer);
     text_layer_destroy(timeLayer);
@@ -514,21 +473,9 @@ void calendar_window_unload(Window *window) {
 }
 
 void calendar_window_load(Window *window) {
-    if( persist_exists(BLACK_KEY))          black =         persist_read_bool(BLACK_KEY);
-    if( persist_exists(GRID_KEY))           grid =          persist_read_bool(GRID_KEY);
-    if( persist_exists(INVERT_KEY))         invert =        persist_read_bool(INVERT_KEY);
-    if( persist_exists(SHOWTIME_KEY))       showtime =      persist_read_bool(SHOWTIME_KEY);
-    if( persist_exists(HIDELASTPREV_KEY))   hidelastprev =  persist_read_bool(HIDELASTPREV_KEY);
-    if( persist_exists(BOLDEVENTS_KEY))     boldevents =    persist_read_bool(BOLDEVENTS_KEY);
-    if( persist_exists(START_OF_WEEK_KEY))  start_of_week = persist_read_int(START_OF_WEEK_KEY);
-    if( persist_exists(SHOWWEEKNO_KEY))     showweekno =    persist_read_int(SHOWWEEKNO_KEY);
-    if( persist_exists(WEEKSTOSHOW_KEY))    weekstoshow =   persist_read_int(WEEKSTOSHOW_KEY);
-    
+    readSettings();
     
     clearCalEvents();
-    app_comm_set_sniff_interval(SNIFF_INTERVAL_REDUCED);
-    app_message_open(app_message_inbox_size_maximum(), app_message_outbox_size_maximum());
-    app_message_register_inbox_received(my_in_rcv_handler);
     
 #if !WATCHMODE
     window_set_click_config_provider(window, (ClickConfigProvider) click_config_provider);
@@ -565,7 +512,6 @@ void calendar_window_load(Window *window) {
         updateTime(currentTime);
     }
 
-    tick_timer_service_subscribe(MINUTE_UNIT, handle_tick);
 
     get_settings();
 }
