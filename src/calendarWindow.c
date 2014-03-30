@@ -280,17 +280,17 @@ void days_layer_update_callback(Layer *me, GContext* ctx) {
     
     // Build the MONTH YEAR string
     char str[20];
-#if WATCHMODE
-    currentTime->tm_year = year - 1900;
-    currentTime->tm_mon = mon;
-    currentTime->tm_mday = today;
-    strftime(str, sizeof(str), "%B %d, %Y", currentTime);
-#else
-    currentTime->tm_year = year - 1900;
-    currentTime->tm_mon = mon;
-    currentTime->tm_mday = 1;
-    strftime(str, sizeof(str), "%B %Y",currentTime );
-#endif
+    if(watchmode){
+        currentTime->tm_year = year - 1900;
+        currentTime->tm_mon = mon;
+        currentTime->tm_mday = today;
+        strftime(str, sizeof(str), "%B %d, %Y", currentTime);
+    }else{
+        currentTime->tm_year = year - 1900;
+        currentTime->tm_mon = mon;
+        currentTime->tm_mday = 1;
+        strftime(str, sizeof(str), "%B %Y",currentTime );
+    }
 
     GRect rec = GRect(0, 0, 144, 25);
     if(showtime)
@@ -436,7 +436,6 @@ void processEventDays(uint16_t dta,uint8_t *encoded){
 }
 
 
-#if !WATCHMODE
 void up_single_click_handler(ClickRecognizerRef recognizer, void *context) {
     offset--;
     monthChanged();
@@ -464,7 +463,6 @@ static void click_config_provider(void* context){
 
    
 }
-#endif
 
 void calendar_window_unload(Window *window) {
     layer_destroy(days_layer);
@@ -477,9 +475,9 @@ void calendar_window_load(Window *window) {
     
     clearCalEvents();
     
-#if !WATCHMODE
-    window_set_click_config_provider(window, (ClickConfigProvider) click_config_provider);
-#endif
+    if(!watchmode){
+        window_set_click_config_provider(window, (ClickConfigProvider) click_config_provider);
+    }
 
 
     if(black)

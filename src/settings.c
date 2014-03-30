@@ -2,6 +2,12 @@
 #include <settings.h>
 #include <calendarUtils.h>
 #include <calendarWindow.h>
+#include <agendaWindow.h>
+#include "pebble_app_info.h"
+
+extern const PebbleAppInfo __pbl_app_info;
+
+bool watchmode =  false;
 
 bool black = true;
 bool grid = true;
@@ -16,6 +22,7 @@ bool boldevents = true;
 int start_of_week = 0;
 int showweekno = 0;
 int weekstoshow = 0;
+int agenda_title_rows = 2;
 
 char weekno_form[4][3] = {"","%V","%U","%W"};
 char daysOfWeek[7][3] = {"S","M","T","W","Th","F","S"};
@@ -35,10 +42,15 @@ bool calEvents[32] = {  false,false,false,false,false,
                         false,false,false,false,false,
                         false,false,false,false,false,false,false};
 
-int agendaLength = 0;
-char agenda[MAX_AGENDA_LENGTH][3][30];
+int agendaLength = -1;
+char agenda[MAX_AGENDA_LENGTH][3][MAX_AGENDA_TITLE];
 
+void getmode(){
+    watchmode = __pbl_app_info.flags==RESOURCE_ID_IMAGE_MENU_ICON;
+}
 void readSettings(){
+
+
     if( persist_exists(BLACK_KEY))          black =         persist_read_bool(BLACK_KEY);
     if( persist_exists(GRID_KEY))           grid =          persist_read_bool(GRID_KEY);
     if( persist_exists(INVERT_KEY))         invert =        persist_read_bool(INVERT_KEY);
@@ -49,6 +61,8 @@ void readSettings(){
     if( persist_exists(SHOWWEEKNO_KEY))     showweekno =    persist_read_int(SHOWWEEKNO_KEY);
     if( persist_exists(WEEKSTOSHOW_KEY))    weekstoshow =   persist_read_int(WEEKSTOSHOW_KEY);
     if( persist_exists(AGENDA_KEY))         agendaLength =  persist_read_int(AGENDA_KEY);
+    if( persist_exists(AGENDA_TITLE_KEY))   agenda_title_rows =  persist_read_int(AGENDA_TITLE_KEY);
+    
     for(int i = 0; i<MAX_AGENDA_LENGTH;i++ ){
         if( persist_exists(AGENDA_KEY+i+1))
             persist_read_data(AGENDA_KEY+i+1,agenda[i],sizeof(agenda[i]));
@@ -94,29 +108,31 @@ void get_settings(){
     app_log(APP_LOG_LEVEL_DEBUG, "calendarApp.c",364,"Message Sent");
 }
 
-void processSettings(uint8_t encoded[2]){
+void processSettings(uint8_t encoded[4]){
 
-    black           = (encoded[0] & (1 << 0)) != 0;
-    grid            = (encoded[0] & (1 << 1)) != 0;
-    invert          = (encoded[0] & (1 << 2)) != 0;
-    showtime        = (encoded[0] & (1 << 3)) != 0;
-    hidelastprev    = (encoded[0] & (1 << 4)) != 0;
-    boldevents      = (encoded[0] & (1 << 5)) != 0;
+    black               = (encoded[0] & (1 << 0)) != 0;
+    grid                = (encoded[0] & (1 << 1)) != 0;
+    invert              = (encoded[0] & (1 << 2)) != 0;
+    showtime            = (encoded[0] & (1 << 3)) != 0;
+    hidelastprev        = (encoded[0] & (1 << 4)) != 0;
+    boldevents          = (encoded[0] & (1 << 5)) != 0;
 
-    start_of_week   = (int) encoded[1];
-    showweekno      = (int) encoded[2];
-    weekstoshow      = (int) encoded[3];
+    start_of_week       = (int) encoded[1];
+    showweekno          = (int) encoded[2];
+    weekstoshow         = (int) encoded[3];
+    agenda_title_rows   = (int) encoded[4]+1;
 
     int changed = false;
-    if( ( ! persist_exists(BLACK_KEY)         ) || persist_read_bool(BLACK_KEY)         != black        ){ persist_write_bool(BLACK_KEY,         black);         changed = true;}
-    if( ( ! persist_exists(GRID_KEY)          ) || persist_read_bool(GRID_KEY)          != grid         ){ persist_write_bool(GRID_KEY,          grid);          changed = true;}
-    if( ( ! persist_exists(INVERT_KEY)        ) || persist_read_bool(INVERT_KEY)        != invert       ){ persist_write_bool(INVERT_KEY,        invert);        changed = true;}
-    if( ( ! persist_exists(SHOWTIME_KEY)      ) || persist_read_bool(SHOWTIME_KEY)      != showtime     ){ persist_write_bool(SHOWTIME_KEY,      showtime);      changed = true;}
-    if( ( ! persist_exists(HIDELASTPREV_KEY)  ) || persist_read_bool(HIDELASTPREV_KEY)  != hidelastprev ){ persist_write_bool(HIDELASTPREV_KEY,  hidelastprev);  changed = true;}
-    if( ( ! persist_exists(BOLDEVENTS_KEY)    ) || persist_read_bool(BOLDEVENTS_KEY)    != boldevents   ){ persist_write_bool(BOLDEVENTS_KEY,    boldevents);    changed = true;}
-    if( ( ! persist_exists(START_OF_WEEK_KEY) ) || persist_read_int (START_OF_WEEK_KEY) != start_of_week){ persist_write_int(START_OF_WEEK_KEY,  start_of_week); changed = true;}
-    if( ( ! persist_exists(SHOWWEEKNO_KEY)    ) || persist_read_int (SHOWWEEKNO_KEY)    != showweekno   ){ persist_write_int(SHOWWEEKNO_KEY,     showweekno);    changed = true;}
-    if( ( ! persist_exists(WEEKSTOSHOW_KEY)   ) || persist_read_int (WEEKSTOSHOW_KEY)   != weekstoshow  ){ persist_write_int(WEEKSTOSHOW_KEY,    weekstoshow);   changed = true;}
+    if( ( ! persist_exists(BLACK_KEY)         ) || persist_read_bool(BLACK_KEY)         != black            ){ persist_write_bool(BLACK_KEY,         black);         changed = true;}
+    if( ( ! persist_exists(GRID_KEY)          ) || persist_read_bool(GRID_KEY)          != grid             ){ persist_write_bool(GRID_KEY,          grid);          changed = true;}
+    if( ( ! persist_exists(INVERT_KEY)        ) || persist_read_bool(INVERT_KEY)        != invert           ){ persist_write_bool(INVERT_KEY,        invert);        changed = true;}
+    if( ( ! persist_exists(SHOWTIME_KEY)      ) || persist_read_bool(SHOWTIME_KEY)      != showtime         ){ persist_write_bool(SHOWTIME_KEY,      showtime);      changed = true;}
+    if( ( ! persist_exists(HIDELASTPREV_KEY)  ) || persist_read_bool(HIDELASTPREV_KEY)  != hidelastprev     ){ persist_write_bool(HIDELASTPREV_KEY,  hidelastprev);  changed = true;}
+    if( ( ! persist_exists(BOLDEVENTS_KEY)    ) || persist_read_bool(BOLDEVENTS_KEY)    != boldevents       ){ persist_write_bool(BOLDEVENTS_KEY,    boldevents);    changed = true;}
+    if( ( ! persist_exists(START_OF_WEEK_KEY) ) || persist_read_int (START_OF_WEEK_KEY) != start_of_week    ){ persist_write_int(START_OF_WEEK_KEY,  start_of_week); changed = true;}
+    if( ( ! persist_exists(SHOWWEEKNO_KEY)    ) || persist_read_int (SHOWWEEKNO_KEY)    != showweekno       ){ persist_write_int(SHOWWEEKNO_KEY,     showweekno);    changed = true;}
+    if( ( ! persist_exists(WEEKSTOSHOW_KEY)   ) || persist_read_int (WEEKSTOSHOW_KEY)   != weekstoshow      ){ persist_write_int(WEEKSTOSHOW_KEY,    weekstoshow);   changed = true;}
+    if( ( ! persist_exists(AGENDA_TITLE_KEY)  ) || persist_read_int (AGENDA_TITLE_KEY)  != agenda_title_rows){ persist_write_int(AGENDA_TITLE_KEY,    agenda_title_rows);  agenda_mark_dirty(); }
 
 
 

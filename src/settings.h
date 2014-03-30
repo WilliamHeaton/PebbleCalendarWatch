@@ -1,5 +1,6 @@
 
-#define MAX_AGENDA_LENGTH 15
+#define MAX_AGENDA_LENGTH 50
+#define MAX_AGENDA_TITLE 55
 //Send Keys
 #define GET_EVENT_DAYS 1
 #define GET_SETTINGS 2
@@ -24,6 +25,7 @@
 #define HIDELASTPREV_KEY 7
 #define BOLDEVENTS_KEY 8
 #define WEEKSTOSHOW_KEY 9
+#define AGENDA_TITLE_KEY 10
 #define AGENDA_KEY 100
 
 extern bool black;
@@ -33,9 +35,12 @@ extern bool showtime;
 extern bool hidelastprev;
 extern bool boldevents;
 
+bool watchmode;
 extern int start_of_week;
 extern int showweekno;
 extern int weekstoshow;
+extern int weekstoshow;
+extern int agenda_title_rows;
 
 extern char weekno_form[4][3];
 extern char daysOfWeek[7][3];
@@ -52,9 +57,9 @@ extern int curSec;
 extern bool calEvents[32];
 
 extern int agendaLength;
-extern char agenda[MAX_AGENDA_LENGTH][3][30];
+extern char agenda[MAX_AGENDA_LENGTH][3][MAX_AGENDA_TITLE];
 
 void readSettings();
 void get_settings();
-
+void getmode();
 void processSettings(uint8_t encoded[2]);

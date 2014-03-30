@@ -3,7 +3,6 @@
 #include <calendarWindow.h>
 #include <agendaWindow.h>
 
-#define WATCHMODE false
 
 
 
@@ -38,32 +37,26 @@ void my_in_rcv_handler(DictionaryIterator *received, void *context) {
     if(settings_tuple) {
         processSettings(settings_tuple->value->data);
     }
-    if(event_details_length_tuple && event_details_length_tuple->value->uint16 <= MAX_AGENDA_LENGTH) {
-        agendaLength = (int)event_details_length_tuple->value->uint16;
-        persist_write_int(AGENDA_KEY,agendaLength);
-    }
     if(event_days_tuple) {
         processEventDays(monthyear_tuple->value->uint16,event_days_tuple->value->data);
     }
-    if(event_details_datel_tuple && MAX_AGENDA_LENGTH >= event_details_tuple->value->uint16) {
-        
-        if(agendaLength < ((int)event_details_tuple->value->uint16)){
-            agendaLength = (int)event_details_tuple->value->uint16;
-            persist_write_int(AGENDA_KEY,agendaLength);
-        }
-        
-        strcpy(agenda[(int)event_details_tuple->value->uint16-1][0],event_details_datel_tuple->value->cstring);
-        strcpy(agenda[(int)event_details_tuple->value->uint16-1][1],event_details_line1_tuple->value->cstring);
-        strcpy(agenda[(int)event_details_tuple->value->uint16-1][2],event_details_line2_tuple->value->cstring);
+    if(event_details_length_tuple && event_details_length_tuple->value->uint16 < MAX_AGENDA_LENGTH) {
+        persist_write_int(AGENDA_KEY,agendaLength = event_details_length_tuple->value->uint16);
+        agenda_mark_dirty();
+    }
+    
+    if(event_details_datel_tuple && event_details_tuple->value->uint16 < MAX_AGENDA_LENGTH ) {
+        processEventDetails((int)event_details_tuple->value->uint16,
+                            event_details_datel_tuple->value->cstring,
+                            event_details_line1_tuple->value->cstring,
+                            event_details_line2_tuple->value->cstring);
             
-        persist_write_data(AGENDA_KEY+((int)event_details_tuple->value->uint16),agenda[(int)event_details_tuple->value->uint16-1],sizeof(agenda[(int)event_details_tuple->value->uint16-1]));
-        if(menu_layer!=NULL)
-            menu_layer_reload_data(menu_layer);
     }
 }
 
 int main(void) {
     
+    getmode();
     
     app_comm_set_sniff_interval(SNIFF_INTERVAL_REDUCED);
     app_message_open(app_message_inbox_size_maximum(), app_message_outbox_size_maximum());
