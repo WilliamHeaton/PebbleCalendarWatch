@@ -1,5 +1,6 @@
 #include <pebble.h>
 #include <settings.h>
+#include <calendarWindow.h>
 #include <agendaWindow.h>
 
 Window *agenda_window;
@@ -10,25 +11,28 @@ void processEventDetails(int key, char datel[MAX_AGENDA_TITLE], char title[MAX_A
     bool changed = false;
     
     if(agendaLength < key){
-        persist_write_int(AGENDA_KEY,agendaLength = key);
+        persist_write_int(AGENDALENGTH_KEY,agendaLength = key);
         changed = true;
     }
     
-    if( strcmp(agenda[key][0],datel) !=0 ){
-        strcpy(agenda[key][0],datel);
+    if( strcmp(agendaDate[key],datel) !=0 ){
+        strcpy(agendaDate[key],datel);
         changed = true;
     }
-    if( strcmp(agenda[key][1],title) !=0 ){
-        strcpy(agenda[key][1],title);
+    if( strcmp(agendaTitle[key],title) !=0 ){
+        strcpy(agendaTitle[key],title);
         changed = true;
     }
-    if( strcmp(agenda[key][2],timel) !=0 ){
-        strcpy(agenda[key][2],timel);
+    if( strcmp(agendaTime[key],timel) !=0 ){
+        strcpy(agendaTime[key],timel);
         changed = true;
     }
     if(changed){
-        persist_write_data(AGENDA_KEY+key+1,agenda[key],sizeof(agenda[key]));
+        persist_write_data(AGENDATITLE_KEY+key,agendaTitle[key],sizeof(agendaTitle[key]));
+        persist_write_data(AGENDADATE_KEY +key,agendaDate[key], sizeof(agendaDate[key]));
+        persist_write_data(AGENDATIME_KEY +key,agendaTime[key], sizeof(agendaTime[key]));
         agenda_mark_dirty();
+        layer_mark_dirty(days_layer);
     }
 
 }
@@ -51,36 +55,35 @@ void get_event_details(){
     app_log(APP_LOG_LEVEL_DEBUG, "agendaWindow.c",364,"Message Sent");
 }
 
-int agenda_left_padding, agenda_bottom_padding, agenda_title_font_height,agenda_time_padding;
+int agenda_bottom_padding, agenda_title_font_height,agenda_time_padding;
 GFont agenda_title_font;
 GRect agenda_title_cell_rect;
 GFont agenda_time_font;
 GRect agenda_time_cell_rect;
 void init_agenda_layout(){
 
-    agenda_left_padding = 7;
     agenda_bottom_padding = 10;
     agenda_time_padding = 3;
     agenda_title_font = fonts_get_system_font(FONT_KEY_GOTHIC_24);
     agenda_time_font  = fonts_get_system_font(FONT_KEY_GOTHIC_18);
     agenda_title_font_height = graphics_text_layout_get_content_size("Hygjp",agenda_title_font, GRect(0,0,144,144), GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft).h;
-    agenda_title_cell_rect = (GRect){ .origin = (GPoint){.x=agenda_left_padding,.y=0}, .size = (GSize){.h=agenda_title_rows*agenda_title_font_height,.w=144-2*agenda_left_padding} };
-    agenda_time_cell_rect = (GRect){ .origin = (GPoint){.x=agenda_left_padding,.y=0}, .size = (GSize){.h=168,.w=144-2*agenda_left_padding} };
+    agenda_title_cell_rect = (GRect){ .origin = (GPoint){.x=AGENDA_PAD_L,.y=0}, .size = (GSize){.h=agenda_title_rows*agenda_title_font_height,.w=144-2*AGENDA_PAD_L} };
+    agenda_time_cell_rect = (GRect){ .origin = (GPoint){.x=AGENDA_PAD_L,.y=0}, .size = (GSize){.h=168,.w=144-2*AGENDA_PAD_L} };
 }
 int16_t menu_get_cell_height_callback(MenuLayer *menu_layer, MenuIndex *cell_index, void *callback_context){
 
 
     int title_height = graphics_text_layout_get_content_size(
-        agenda[cell_index->section][1],
+        agendaTitle[cell_index->section],
         agenda_title_font, 
         agenda_title_cell_rect, 
         GTextOverflowModeTrailingEllipsis, 
         GTextAlignmentLeft).h;
 
     int time_height = 0;    
-    if(strlen(agenda[cell_index->section][2])>1){
+    if(strlen(agendaTime[cell_index->section])>1){
         time_height = graphics_text_layout_get_content_size(
-            agenda[cell_index->section][2],
+            agendaTime[cell_index->section],
             agenda_time_font, 
             agenda_time_cell_rect, 
             GTextOverflowModeTrailingEllipsis, 
@@ -101,12 +104,12 @@ static int16_t menu_get_header_height_callback(MenuLayer *menu_layer, uint16_t s
 }
 static void menu_draw_header_callback(GContext* ctx, const Layer *cell_layer, uint16_t section_index, void *data) {
     
-    menu_cell_basic_header_draw(ctx, cell_layer, agenda[section_index][0]);
+    menu_cell_basic_header_draw(ctx, cell_layer, agendaDate[section_index]);
 }
 static void menu_draw_row_callback(GContext* ctx, const Layer *cell_layer, MenuIndex *cell_index, void *data) {
         
     int title_height = graphics_text_layout_get_content_size(
-        agenda[cell_index->section][1],
+        agendaTitle[cell_index->section],
         agenda_title_font, 
         agenda_title_cell_rect, 
         GTextOverflowModeTrailingEllipsis, 
@@ -115,19 +118,19 @@ static void menu_draw_row_callback(GContext* ctx, const Layer *cell_layer, MenuI
     graphics_context_set_text_color(ctx, GColorBlack);
     graphics_draw_text(
         ctx, 
-        agenda[cell_index->section][1],
+        agendaTitle[cell_index->section],
         agenda_title_font, 
         agenda_title_cell_rect, 
         GTextOverflowModeTrailingEllipsis, 
         GTextAlignmentLeft, 
         NULL); 
             
-    if(strlen(agenda[cell_index->section][2])>1){
+    if(strlen(agendaTime[cell_index->section])>1){
         graphics_draw_text(
             ctx, 
-            agenda[cell_index->section][2],
+            agendaTime[cell_index->section],
             agenda_time_font, 
-            (GRect){ .origin = (GPoint){.x=agenda_left_padding,.y=title_height+agenda_time_padding}, .size = (GSize){.h=168,.w=144-2*agenda_left_padding} }, 
+            (GRect){ .origin = (GPoint){.x=AGENDA_PAD_L,.y=title_height+agenda_time_padding}, .size = (GSize){.h=168,.w=144-2*AGENDA_PAD_L} }, 
             GTextOverflowModeTrailingEllipsis, 
             GTextAlignmentLeft,
             NULL);    

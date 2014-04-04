@@ -9,6 +9,17 @@ unsigned months_to_days (unsigned month) {
   return (month * 3057 - 3007) / 100;
 }
 
+void factorDate(int *month, int *year){
+    
+    while(*month>11){
+        *month = *month - 12;
+        *year = *year+1;;
+    }
+    while(*month<0){
+        *month = *month + 12;
+        *year = *year-1;;
+    }
+}
 unsigned years_to_days (unsigned yr) {
   return yr * 365L + yr / 4 - yr / 100 + yr / 400;
 }
